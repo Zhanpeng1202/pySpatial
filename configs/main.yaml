@@ -1,0 +1,7 @@
+tool:
+  sam2:
+    checkpoint: /data/Datasets/pySpatial/weights/sam2/sam2.1_hiera_large.pt
+  depthAnything2:
+    checkpoint: /data/Datasets/pySpatial/weights/depthAnything2/depth_anything_v2_metric_indoor_large.pth
+  vggt:
+    checkpoint: /data/Datasets/pySpatial/weights/vggt/model.pt
