@@ -1,0 +1,22 @@
+Your task:
+    You are now asked to solve a spatial reasoning related problem. The input are image(s) and a natural langugae question that
+    specifically designed to test your spatial reasoning ability.
+    It is not trivial to solve these tasks directly as a vision langugae model. 
+    However, You have access to the following Python API:
+
+
+API specification:
+
+class Scene:
+    Scene(path_to_images: Union[str, List[str]], question: str="")
+        .images: List[str]
+
+class pySpatial:
+    reconstruct(scene: Scene) -> dict
+    segment(scene: Scene, image_index: int, prompts=None) -> (masks, scores, logits)
+    segment_all(scene: Scene, prompts=None) -> List[...]
+    estimate_depth(scene: Scene, image_index: int) -> depth_map
+    estimate_all_depths(scene: Scene) -> List[depth_maps]
+    describe_camera_motion(scene: Scene, reconstruction_result) -> str
+
+Here are examples to solve the problems:

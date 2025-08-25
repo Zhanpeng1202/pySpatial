@@ -35,39 +35,12 @@ class Scene:
 
 class pySpatial:
     """Simple interface for 3D vision tools."""
+    # we disable other function for now
     
     @staticmethod
     def reconstruct(scene: Scene):
         """3D reconstruction from scene images."""
         return reconstruct_3d(scene.images)
-    
-    @staticmethod
-    def segment(scene: Scene, image_index: int, prompts=None):
-        """Segment specific image in scene."""
-        return segment_image(scene.images[image_index], prompts)
-    
-    @staticmethod
-    def segment_all(scene: Scene, prompts=None):
-        """Segment all images in scene."""
-        results = []
-        for image_path in scene.images:
-            masks, scores, logits = segment_image(image_path, prompts)
-            results.append((masks, scores, logits))
-        return results
-    
-    @staticmethod
-    def estimate_depth(scene: Scene, image_index: int):
-        """Estimate depth for specific image in scene."""
-        return estimate_depth(scene.images[image_index])
-    
-    @staticmethod
-    def estimate_all_depths(scene: Scene):
-        """Estimate depth for all images in scene."""
-        results = []
-        for image_path in scene.images:
-            depth = estimate_depth(image_path)
-            results.append(depth)
-        return results
     
     @staticmethod
     def describe_camera_motion(scene: Scene, reconstruction_result):
@@ -80,8 +53,20 @@ class pySpatial:
         else:
             return ["Camera motion analysis not available"]
 
+    # def novel_view_synthesis():
+    #     pass
+    
+    # def generate_cogMap():
+    #     pass
 
 class Agent:
-    """AI agent interface - to be implemented."""
-    pass
+    def __init__():
+        pass
+    def generate_code():
+        pass
+    def parse_LLM_response():
+        pass
+    def execute():
+        pass
+    
     
