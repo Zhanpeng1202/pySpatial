@@ -9,13 +9,85 @@ task_description = """
 """
 
 api_specification = """
+    In the PySpatial API, we explicitly introduce the 3D inductive bias.
+    We provide a Scene class that contains the image(s) and a question.
+    Further, we also provide a 3D reconstruction process that can be used to generate a 3D point cloud and camera parameters.
+    
+
+    class Reconstruction:
+        def __init__(self, point_cloud, extrinsics, intrinsics):
+            self.point_cloud = point_cloud
+            self.extrinsics = extrinsics
+            self.intrinsics = intrinsics
+        
+
     class Scene:
-        Scene(path_to_images: Union[str, List[str]], question: str="")
-            .images: List[str]
+        "Simple scene class that holds image data."
+        
+        def __init__(self, path_to_images: Union[str, List[str]], question: str = ""):
+            self.question = question
+            self.images = self._load_images(path_to_images)
+            self.reconstruction : Reconstruction = None
+        
+        def _load_images(self, path_to_images: Union[str, List[str]]) -> List[str]:
+            "Load image paths from directory or list."
+            if isinstance(path_to_images, str):
+                if os.path.isdir(path_to_images):
+                    # Load all images from directory
+                    image_extensions = ['*.png', '*.jpg', '*.jpeg']
+                    images = []
+                    for ext in image_extensions:
+                        images.extend(glob.glob(os.path.join(path_to_images, ext)))
+                    return sorted(images)
+                else:
+                    # Single image file
+                    return [path_to_images]
+            else:
+                # List of image paths
+                return list(path_to_images)
+
+
 
     class pySpatial:
-        reconstruct(scene: Scene) -> dict
-        describe_camera_motion(scene: Scene, reconstruction_result) -> str
+        "Simple interface for 3D vision tools."
+        # we disable other function for now
+        
+        @staticmethod
+        def reconstruct(scene: Scene):
+            "3D reconstruction from scene images."
+            
+            return reconstruct_3d(scene.images)
+        
+        @staticmethod
+        def describe_camera_motion(recon: Reconstruction):
+            "Describe camera motion from reconstruction results.
+            Args:
+            "
+            extrinsics = recon.extrinsics
+            return describe_camera_motion(extrinsics)
+
+        @staticmethod
+        def synthesize_novel_view(recon: Reconstruction, new_camera_pose):
+            "Generate novel view synthesis from reconstruction results.
+            Args:
+            "
+            return novel_view_synthesis(recon)
+        
+        # methods to manipulate camera pose    
+        def rotate_right(extrinsic, angle=np.pi/2):
+
+        def rotate_left(extrinsic, angle=np.pi/2):
+
+        def move_forward(extrinsic, distance=0.1):
+
+        def move_backward(extrinsic, distance=0.1):
+
+        def turn_around(extrinsic):
+
+        
+        @staticmethod
+        def estimate_depth(image):
+            return estimate_depth(image)
 """
 
 # in-context learning exmaples
@@ -34,6 +106,47 @@ example_problems = """
     Step 3: it is still not trivial to directly get the answer from extrinsic matrix.
     Step 4: we can use the pySpatial.describe_camera_motion to get the answer.
     Next, write python code within the pySpatial API provided, then an agent will automatically collect the code I wrote and execute it.
+    
+    ```python
+    def program(input_scene: Scene):
+        reconstruction3D = pySpatial.reconstruct(input_scene)
+        camera_motion = pySpatial.describe_camera_motion(reconstruction3D)
+        return camera_motion
+    ```
     Step 5: After I get the visual clue from execution, I can easily match the answer:
     
+    Problem 2:
+    Question: "Based on these four images (image 1, 2, 3, and 4) showing the black sneaker from different viewpoints (front, left, back, and right), 
+    with each camera aligned with room walls and partially capturing the surroundings: 
+    From the viewpoint presented in image 2, what is to the right of the black sneaker?
+    A. TV
+    B. Wooden dining table 
+    C. Light purple sofa
+    D. Brown curtains and windows
+    
+    How to solve this problem?
+    We can first reconstruct the scene and get the point cloud.
+    After that we can use the pySpatial.synthesize_novel_view to get the novel view. We should specifically design a new camera pose.
+    We want to see the right of the black sneaker from the viewpoint as image 2. One possible way is to rotate the camera right from viewpoint 2.  
+    We can use the pySpatial.rotate_right to rotate the camera right.
+    
+    Next, write the python code with the pySptial API provided.
+    ```python
+    def program(input_scene: Scene):
+        reconstruction3D = pySpatial.reconstruct(input_scene)
+        novel_viewpoint = pySpatial.rotate_right(reconstruction3D.extrinsics[1]) # noted that the second viewpoint is the 1st index in the array
+        novel_view = pySpatial.synthesize_novel_view(reconstruction3D, novel_viewpoint)
+        return novel_view
+    ```
+    From the render view, we can find the result is: 
+    
+"""
+
+
+code_generation_prompt = f"""
+    Now please utilize the PySpatial API and write a python function to solve the problem.
+    Noted that you can first do reasoning and then write the code. 
+    But the code should be wrapped in the ```python ``` block.
+    Write a compact code block
+    Also, the name of your function written should be program and the input should be a Scene object.
 """

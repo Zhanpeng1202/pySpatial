@@ -4,6 +4,10 @@ __pycache__/
 *$py.class
 
 
+*.json
+*.jsonl
+
+
 
 *.png
 *.jpg
