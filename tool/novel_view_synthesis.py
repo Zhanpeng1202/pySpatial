@@ -9,35 +9,39 @@ def render_pcd_with_extrinsics(points_xyz, colors_rgb, K, E_world2cam, width, he
     K: 3x3 intrinsics [[fx,0,cx],[0,fy,cy],[0,0,1]]
     E_world2cam: 4x4 extrinsic (world -> camera). If you have cam->world (pose), invert it.
     """
-    # Open3D point cloud
+    # Create point cloud
     pcd = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(points_xyz))
     if colors_rgb is not None:
         pcd.colors = o3d.utility.Vector3dVector(np.clip(colors_rgb, 0, 1))
 
-    # Intrinsics
+    # Set up camera intrinsics
     fx, fy, cx, cy = K[0,0], K[1,1], K[0,2], K[1,2]
-    intr = o3d.camera.PinholeCameraIntrinsic(int(width), int(height), fx, fy, cx, cy)
+    intrinsic = o3d.camera.PinholeCameraIntrinsic(int(width), int(height), fx, fy, cx, cy)
 
-    # Pack into camera params
-    cam_params = o3d.camera.PinholeCameraParameters()
-    cam_params.intrinsic = intr
-    cam_params.extrinsic = E_world2cam.astype(np.float64)
-
-    # Off-screen render
-    vis = o3d.visualization.Visualizer()
-    vis.create_window(visible=False, width=int(width), height=int(height))
-    vis.add_geometry(pcd)
-    opt = vis.get_render_option()
-    opt.point_size = float(point_size)
-    opt.background_color = np.array([1.0, 1.0, 1.0])  # white
-
-    ctr = vis.get_view_control()
-    # IMPORTANT: keep your exact extrinsics/intrinsics
-    ctr.convert_from_pinhole_camera_parameters(cam_params, allow_arbitrary=True)
-
-    vis.poll_events(); vis.update_renderer()
-    vis.capture_screen_image(out_path)
-    vis.destroy_window()
+    # Use OffscreenRenderer for headless rendering
+    renderer = o3d.visualization.rendering.OffscreenRenderer(int(width), int(height))
+    
+    # Add the point cloud to the scene
+    renderer.scene.add_geometry("pointcloud", pcd, o3d.visualization.rendering.MaterialRecord())
+    
+    # Set material properties including point size
+    mat = o3d.visualization.rendering.MaterialRecord()
+    mat.point_size = float(point_size)
+    renderer.scene.modify_geometry_material("pointcloud", mat)
+    
+    # Set camera parameters
+    renderer.setup_camera(intrinsic, E_world2cam)
+    
+    # Set background to white
+    renderer.scene.set_background([1.0, 1.0, 1.0, 1.0])
+    
+    # Render the image
+    image = renderer.render_to_image()
+    
+    # Save the rendered image
+    o3d.io.write_image(out_path, image)
+    
+    print(f"Rendered image saved to: {out_path}")
     return out_path
 
 # Example usage:
