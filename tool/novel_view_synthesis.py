@@ -1,8 +1,15 @@
 import numpy as np
 import open3d as o3d
 
+def zoom_out_K(K, scale=0.5):
+    """Scale focal lengths by `scale` (e.g., 0.5 zooms out)."""
+    K_new = K.copy().astype(np.float32)
+    K_new[0, 0] *= float(scale)  # fx
+    K_new[1, 1] *= float(scale)  # fy
+    return K_new
+
 def render_pcd_with_extrinsics(points_xyz, colors_rgb, K, E_world2cam, width, height,
-                               point_size=2.0, out_path="render.png"):
+                               point_size=2.0, out_path="render.png", zoom_out_scale=0.5):
     """
     points_xyz: (N,3) float32 in world coords
     colors_rgb: (N,3) float32 in [0,1] or None
@@ -14,8 +21,11 @@ def render_pcd_with_extrinsics(points_xyz, colors_rgb, K, E_world2cam, width, he
     if colors_rgb is not None:
         pcd.colors = o3d.utility.Vector3dVector(np.clip(colors_rgb, 0, 1))
 
+    # Apply zoom out to enlarge field of view
+    K_zoomed = zoom_out_K(K, zoom_out_scale)
+    
     # Set up camera intrinsics
-    fx, fy, cx, cy = K[0,0], K[1,1], K[0,2], K[1,2]
+    fx, fy, cx, cy = K_zoomed[0,0], K_zoomed[1,1], K_zoomed[0,2], K_zoomed[1,2]
     intrinsic = o3d.camera.PinholeCameraIntrinsic(int(width), int(height), fx, fy, cx, cy)
 
     # Use OffscreenRenderer for headless rendering

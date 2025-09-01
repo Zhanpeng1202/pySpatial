@@ -140,6 +140,30 @@ example_problems = """
     ```
     From the render view, we can find the result is: 
     
+    
+    Problem 3:
+    Based on these four images (image 1, 2, 3, and 4) showing the pink bottle from different viewpoints (front, left, back, and right),
+    with each camera aligned with room walls and partially capturing the surroundings:
+    If I am standing at the same spot and facing the same direction as shown in image 1,
+    then I turn right and move forward, will I get closer to the pink plush toy and headboard?
+    
+    since we do not have the way to compare distance in 3D space, we can render two images, and use these two images as visual clue.
+    ```python
+        reconstructed_scene = pySpatial.reconstruct(input_scene)
+        base_viewpoint = reconstructed_scene.extrinsics[0] # the image 1 indicates the 0th index in the array
+        
+        viewpoint_turn_right = pySpatial.rotate_right(base_viewpoint)
+        viewpoint_move_forward = pySpatial.move_forward(viewpoint_turn_right)
+
+        image_right = pySpatial.synthesize_novel_view(reconstructed_scene, viewpoint_turn_right)   
+        image_forward = pySpatial.synthesize_novel_view(reconstructed_scene, viewpoint_move_forward)
+        
+        # we should compare these two images, check if the object exists and if the distance is closer.
+        visual_clue = [image_right, image_forward]        
+        return visual_clue
+    ```
+    
+    
 """
 
 
@@ -150,3 +174,28 @@ code_generation_prompt = f"""
     Write a compact code block
     Also, the name of your function written should be program and the input should be a Scene object.
 """
+
+
+# Prompt template for ReAct: ReAct: Synergizing Reasoning and Acting in Language Models https://arxiv.org/abs/2210.03629
+
+background = f"""
+    We are now solving a spatial reasoing problem.     
+    It is not trivial to solve these tasks directly as a vision langugae model. 
+    However, We have access to the following PySpatial API:
+    {api_specification}
+    
+    We generate a python code based on the PySpatial API to solve this problem.
+"""
+
+reflexion = """
+    Based on the code and the visual clue from the execution, can we first reason if the visual clue is helpful?
+    
+    1. Is the code generated correct, which means the code does not use functions outside the PySpatial API?
+    2. What is the answer of the question directly based on visual clue? If the answer is contained in the choice, answer it directly.
+    3. If the code is not correct or the visual clue is not helpful, we should discard the visual clue and directly answer it with the VLM capabilities.
+"""
+
+
+
+
+

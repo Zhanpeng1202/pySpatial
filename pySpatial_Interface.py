@@ -6,7 +6,7 @@ from tool.recontruct import reconstruct_3d
 from tool.segment import segment_image, segment_automatic  
 from tool.estimate_depth import estimate_depth
 from tool.camera_understanding import describe_camera_motion
-from tool.novel_view_synthesis import novel_view_synthesis
+from tool.novel_view_synthesis import novel_view_synthesis, rotate_right, rotate_left, move_forward, move_backward, turn_around
 import re
 
 
@@ -78,6 +78,43 @@ class pySpatial:
     @staticmethod
     def estimate_depth(image):
         return estimate_depth(image)
+    
+    @staticmethod
+    def rotate_right(extrinsic, angle=None):
+        """Rotate camera pose to the right"""
+        if angle is None:
+            return rotate_right(extrinsic)
+        else:
+            return rotate_right(extrinsic, angle)
+    
+    @staticmethod
+    def rotate_left(extrinsic, angle=None):
+        """Rotate camera pose to the left"""
+        if angle is None:
+            return rotate_left(extrinsic)
+        else:
+            return rotate_left(extrinsic, angle)
+    
+    @staticmethod
+    def move_forward(extrinsic, distance=None):
+        """Move camera pose forward"""
+        if distance is None:
+            return move_forward(extrinsic)
+        else:
+            return move_forward(extrinsic, distance)
+    
+    @staticmethod
+    def move_backward(extrinsic, distance=None):
+        """Move camera pose backward"""
+        if distance is None:
+            return move_backward(extrinsic)
+        else:
+            return move_backward(extrinsic, distance)
+    
+    @staticmethod
+    def turn_around(extrinsic):
+        """Turn camera pose around 180 degrees"""
+        return turn_around(extrinsic)
 
 
 class Agent:
@@ -93,13 +130,14 @@ class Agent:
         Extracts the first python code block (```python ... ```) from text.
         Returns the code as a string, or "" if not found.
         """
-        match = re.search(r"```python\s*(.*?)```", response, re.DOTALL | re.IGNORECASE)
-        if match:
-            return match.group(1).strip()
-        return ""
+        from VLMs.codeAgent.execute import parse_LLM_response
+        return parse_LLM_response(response)
         
     def execute(self, code: str):
-        # we should implement this later
-        pass
+        """
+        Execute a code string and return the defined program function.
+        """
+        from VLMs.codeAgent.execute import execute_code
+        return execute_code(code)
     
     

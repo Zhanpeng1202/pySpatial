@@ -54,3 +54,4 @@ def generate_code(scene: Scene, api_key: str = None):
     """Legacy function name for backward compatibility"""
     return generate_code_from_query(scene, api_key)
 
+
