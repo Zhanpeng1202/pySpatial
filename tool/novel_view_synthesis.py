@@ -9,7 +9,7 @@ def zoom_out_K(K, scale=0.5):
     return K_new
 
 def render_pcd_with_extrinsics(points_xyz, colors_rgb, K, E_world2cam, width, height,
-                               point_size=2.0, out_path="render.png", zoom_out_scale=0.5):
+                               point_size=2.0, out_path=None, zoom_out_scale=0.5):
     """
     points_xyz: (N,3) float32 in world coords
     colors_rgb: (N,3) float32 in [0,1] or None
@@ -48,11 +48,13 @@ def render_pcd_with_extrinsics(points_xyz, colors_rgb, K, E_world2cam, width, he
     # Render the image
     image = renderer.render_to_image()
     
-    # Save the rendered image
-    o3d.io.write_image(out_path, image)
-    
-    print(f"Rendered image saved to: {out_path}")
-    return out_path
+    # Save the rendered image only if out_path is provided
+    if out_path is not None:
+        o3d.io.write_image(out_path, image)
+        print(f"Rendered image saved to: {out_path}")
+        return out_path
+    else:
+        return image
 
 # Example usage:
 # points_xyz = np.load("points.npy").astype(np.float32)   # (N,3)
@@ -148,7 +150,7 @@ def turn_around(extrinsic):
     """
     return rotate_right(extrinsic, np.pi)
 
-def novel_view_synthesis(reconstruction, new_camera_pose, width=512, height=512, out_path="novel_view.png"):
+def novel_view_synthesis(reconstruction, new_camera_pose, width=512, height=512, out_path=None):
     """
     Main novel view synthesis function that works with pySpatial Reconstruction objects.
     
@@ -157,10 +159,10 @@ def novel_view_synthesis(reconstruction, new_camera_pose, width=512, height=512,
         new_camera_pose: 3x4 or 4x4 extrinsic matrix for the new viewpoint
         width: output image width
         height: output image height  
-        out_path: output image path
+        out_path: output image path (optional, if None returns image object directly)
         
     Returns:
-        str: path to the rendered image
+        str or image: path to the rendered image if out_path provided, otherwise image object
     """
     # Extract data from reconstruction
     point_cloud = reconstruction.point_cloud

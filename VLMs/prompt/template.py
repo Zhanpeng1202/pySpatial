@@ -149,6 +149,9 @@ example_problems = """
     
     since we do not have the way to compare distance in 3D space, we can render two images, and use these two images as visual clue.
     ```python
+    
+    def program(input_scene: Scene):
+    
         reconstructed_scene = pySpatial.reconstruct(input_scene)
         base_viewpoint = reconstructed_scene.extrinsics[0] # the image 1 indicates the 0th index in the array
         
@@ -172,7 +175,13 @@ code_generation_prompt = f"""
     Noted that you can first do reasoning and then write the code. 
     But the code should be wrapped in the ```python ``` block.
     Write a compact code block
-    Also, the name of your function written should be program and the input should be a Scene object.
+    Also, the function written should be named as program and the input parameter should be a Scene object.
+    for example,
+    ```python
+    def program(input_scene: Scene):
+        ...
+        return ...
+    ```
 """
 
 

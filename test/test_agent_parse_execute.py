@@ -130,14 +130,6 @@ def test_agent_execute():
     print(f"Using parsed code:\n{parsed_code}")
     
     try:
-        # Execute the code to get the program function
-        print("\nExecuting code to get program function...")
-        program_func = agent.execute(parsed_code)
-        print(f"✓ Successfully executed code and got program function: {program_func}")
-        
-        # Create a Scene object for testing
-        print(f"\nCreating Scene object for {scene_name}...")
-        
         # Load actual scene data
         metadata = load_scene_data(scene_name)
         reconstruction3D = create_reconstruction_from_metadata(metadata)
@@ -149,28 +141,41 @@ def test_agent_execute():
         
         print(f"✓ Scene created with {len(scene.images)} images")
         
-        # Test running the program function
-        print("\nRunning the program function...")
-        
         # Mock the pySpatial.reconstruct to return our loaded reconstruction
         # Since the program expects to call pySpatial.reconstruct(input_scene)
         original_reconstruct = pySpatial.reconstruct
         pySpatial.reconstruct = lambda scene: reconstruction3D
         
         try:
-            result = program_func(scene)
-            print(f"✓ Program function executed successfully!")
-            print(f"Result: {result}")
+            # Execute code with scene directly and get the visual clue result
+            print("\nExecuting code with scene to get visual clue...")
+            result = agent.execute(parsed_code, scene)
+            print(f"✓ Code executed successfully!")
+            print(f"Result type: {type(result)}")
             
-            # Verify the result is a path to an image file
-            if isinstance(result, str) and result.endswith('.png'):
+            # Save the result if it's an image object
+            saved_path = None
+            if hasattr(result, 'width') and hasattr(result, 'height'):
+                # It's likely an Open3D image object, save it
+                import open3d as o3d
+                saved_path = f"test_result_{scene_name}.png"
+                o3d.io.write_image(saved_path, result)
+                print(f"✓ Visual clue saved to: {saved_path}")
+                
+                if os.path.exists(saved_path):
+                    file_size = os.path.getsize(saved_path)
+                    print(f"✓ Generated image file verified - Size: {file_size} bytes")
+                
+            elif isinstance(result, str) and result.endswith('.png'):
+                # Result is already a path to an image file
+                saved_path = result
                 if os.path.exists(result):
                     file_size = os.path.getsize(result)
                     print(f"✓ Generated image file verified - Size: {file_size} bytes")
                 else:
                     print(f"✗ Warning: Generated image file not found: {result}")
             
-            return True, result
+            return True, saved_path or result
             
         finally:
             # Restore original reconstruct method

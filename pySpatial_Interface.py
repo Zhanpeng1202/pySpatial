@@ -62,16 +62,16 @@ class pySpatial:
         return describe_camera_motion(extrinsics)
 
     @staticmethod
-    def synthesize_novel_view(recon: Reconstruction, new_camera_pose, width=512, height=512, out_path="novel_view.png"):
+    def synthesize_novel_view(recon: Reconstruction, new_camera_pose, width=512, height=512, out_path=None):
         """Generate novel view synthesis from reconstruction results.
         Args:
             recon: Reconstruction object with point_cloud, extrinsics, intrinsics
             new_camera_pose: 3x4 or 4x4 extrinsic matrix for the new viewpoint
             width: output image width (default: 512)
             height: output image height (default: 512)  
-            out_path: output image path (default: "novel_view.png")
+            out_path: output image path (default: None, returns image object if not provided)
         Returns:
-            str: path to the rendered image
+            str or image: path to the rendered image if out_path provided, otherwise image object
         """
         return novel_view_synthesis(recon, new_camera_pose, width, height, out_path)
     
@@ -133,11 +133,25 @@ class Agent:
         from VLMs.codeAgent.execute import parse_LLM_response
         return parse_LLM_response(response)
         
-    def execute(self, code: str):
+    def execute(self, code: str, scene: Scene):
         """
-        Execute a code string and return the defined program function.
+        Execute a code string with a scene and return the visual clue result.
         """
-        from VLMs.codeAgent.execute import execute_code
-        return execute_code(code)
+        try:
+            from VLMs.codeAgent.execute import execute_code
+            program = execute_code(code)
+            
+            visual_clue = program(scene)
+            return visual_clue
+        except Exception:
+            return "there is an error during code generation, no visual clue provided"
     
-    
+    def answer(self, scene: Scene, visual_clue):
+        # answer the question with visual clue
+        
+        
+        # visual clue could be an image, or image list (2 images)
+        # or a string
+        
+        
+        pass
