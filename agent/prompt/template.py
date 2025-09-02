@@ -187,7 +187,7 @@ code_generation_prompt = f"""
 
 # Prompt template for ReAct: ReAct: Synergizing Reasoning and Acting in Language Models https://arxiv.org/abs/2210.03629
 
-background = f"""
+answer_background = f"""
     We are now solving a spatial reasoing problem.     
     It is not trivial to solve these tasks directly as a vision langugae model. 
     However, We have access to the following PySpatial API:
@@ -196,7 +196,7 @@ background = f"""
     We generate a python code based on the PySpatial API to solve this problem.
 """
 
-reflexion = """
+answer_prompt = """
     Based on the code and the visual clue from the execution, can we first reason if the visual clue is helpful?
     
     1. Is the code generated correct, which means the code does not use functions outside the PySpatial API?

@@ -24,6 +24,8 @@ class Scene:
         self.question = question
         self.images = self._load_images(path_to_images)
         self.reconstruction : Reconstruction = None
+        self.code : str = None
+        self.visual_clue = None
         
     def _load_images(self, path_to_images: Union[str, List[str]]) -> List[str]:
         """Load image paths from directory or list."""
@@ -122,24 +124,26 @@ class Agent:
         self.api_key = api_key or os.getenv('OPENAI_API_KEY')
         
     def generate_code(self, scene: Scene):
-        from VLMs.codeAgent.query import generate_code_from_query
+        from agent.codeAgent.query import generate_code_from_query
         return generate_code_from_query(scene, self.api_key)
         
-    def parse_LLM_response(self, response: str):
+    def parse_LLM_response(self, scene: Scene, response: str):
         """
         Extracts the first python code block (```python ... ```) from text.
         Returns the code as a string, or "" if not found.
         """
-        from VLMs.codeAgent.execute import parse_LLM_response
-        return parse_LLM_response(response)
+        from agent.codeAgent.execute import parse_LLM_response
+        code = parse_LLM_response(response)
+        scene.code = code
+        return code
         
-    def execute(self, code: str, scene: Scene):
+    def execute(self, scene: Scene):
         """
         Execute a code string with a scene and return the visual clue result.
         """
         try:
-            from VLMs.codeAgent.execute import execute_code
-            program = execute_code(code)
+            from agent.codeAgent.execute import execute_code
+            program = execute_code(scene.code)
             
             visual_clue = program(scene)
             return visual_clue

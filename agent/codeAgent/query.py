@@ -1,6 +1,6 @@
 import os
 from openai import OpenAI
-from VLMs.prompt.template import task_description, api_specification, example_problems, code_generation_prompt
+from agent.prompt.template import task_description, api_specification, example_problems, code_generation_prompt
 from pySpatial_Interface import Scene
 
 def generate_code_from_query(scene: Scene, api_key: str = None):
