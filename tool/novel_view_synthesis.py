@@ -190,6 +190,21 @@ def novel_view_synthesis(reconstruction, new_camera_pose, width=512, height=512,
             colors_rgb = point_cloud[:, 3:6]
         else:
             raise ValueError(f"Unsupported point cloud shape: {point_cloud.shape}")
+    elif hasattr(point_cloud, 'cpu') or hasattr(point_cloud, 'numpy'):
+        # PyTorch tensor or similar - convert to numpy
+        if hasattr(point_cloud, 'cpu'):
+            point_cloud_np = point_cloud.cpu().numpy()
+        else:
+            point_cloud_np = point_cloud.numpy()
+            
+        if point_cloud_np.shape[1] == 3:
+            points_xyz = point_cloud_np
+            colors_rgb = None
+        elif point_cloud_np.shape[1] == 6:
+            points_xyz = point_cloud_np[:, :3]
+            colors_rgb = point_cloud_np[:, 3:6]
+        else:
+            raise ValueError(f"Unsupported point cloud shape: {point_cloud_np.shape}")
     else:
         raise ValueError(f"Unsupported point cloud type: {type(point_cloud)}")
     
@@ -213,3 +228,5 @@ def novel_view_synthesis(reconstruction, new_camera_pose, width=512, height=512,
         points_xyz, colors_rgb, K, E_world2cam, 
         width, height, out_path=out_path
     )
+    
+    

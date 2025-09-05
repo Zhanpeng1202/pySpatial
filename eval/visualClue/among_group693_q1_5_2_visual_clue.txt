@@ -1,0 +1,2 @@
+Image of size 512x512, with 3 channels.
+Use numpy.asarray to access buffer data.

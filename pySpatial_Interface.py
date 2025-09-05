@@ -20,8 +20,9 @@ class Reconstruction:
 class Scene:
     """Simple scene class that holds image data."""
     
-    def __init__(self, path_to_images: Union[str, List[str]], question: str = ""):
+    def __init__(self, path_to_images: Union[str, List[str]], question: str = "", scene_id: str = None):
         self.question = question
+        self.scene_id = scene_id
         self.images = self._load_images(path_to_images)
         self.reconstruction : Reconstruction = None
         self.code : str = None
@@ -53,7 +54,34 @@ class pySpatial:
     def reconstruct(scene: Scene):
         """3D reconstruction from scene images."""
         
-        return reconstruct_3d(scene.images)
+        result = reconstruct_3d(scene.images, scene_id=scene.scene_id)
+        
+        # Convert the raw result dictionary to a Reconstruction object
+        point_cloud = result.get('points', None)
+        cameras = result.get('cameras', None)
+        
+        # Convert point cloud to numpy if it's a tensor
+        if point_cloud is not None:
+            if hasattr(point_cloud, 'cpu'):  # PyTorch tensor
+                point_cloud = point_cloud.cpu().numpy()
+            elif hasattr(point_cloud, 'numpy'):  # Other tensor types
+                point_cloud = point_cloud.numpy()
+        
+        # Extract extrinsics and intrinsics from cameras if available
+        extrinsics = None
+        intrinsics = None
+        
+        if cameras is not None:
+            # Assume cameras contains extrinsic matrices
+            extrinsics = cameras.cpu().numpy() if hasattr(cameras, 'cpu') else cameras
+        
+        # Create and return Reconstruction object
+        reconstruction = Reconstruction(point_cloud, extrinsics, intrinsics)
+        
+        # Store the raw result for debugging
+        reconstruction._raw_result = result
+        
+        return reconstruction
     
     @staticmethod
     def describe_camera_motion(recon: Reconstruction):
@@ -141,21 +169,31 @@ class Agent:
         """
         Execute a code string with a scene and return the visual clue result.
         """
-        try:
-            from agent.codeAgent.execute import execute_code
-            program = execute_code(scene.code)
+        # try:
+        #     from agent.codeAgent.execute import execute_code
+        #     program = execute_code(scene.code)
             
-            visual_clue = program(scene)
-            return visual_clue
-        except Exception:
-            return "there is an error during code generation, no visual clue provided"
+        #     visual_clue = program(scene)
+        #     return visual_clue
+        # except Exception as e:
+        #     import traceback
+        #     error_details = f"Execution failed: {str(e)}\nTraceback: {traceback.format_exc()}"
+        #     # Store the error for detailed reporting
+        #     self.last_execution_error = error_details
+        #     return f"there is an error during code generation, no visual clue provided. Error: {str(e)}"
+        
+        from agent.codeAgent.execute import execute_code
+        program = execute_code(scene.code)
+        
+        visual_clue = program(scene)
+        return visual_clue
     
     def answer(self, scene: Scene, visual_clue):
         # answer the question with visual clue
+        from agent.anwer import answer
         
+        # Set the visual clue in the scene
+        scene.visual_clue = visual_clue
         
-        # visual clue could be an image, or image list (2 images)
-        # or a string
-        
-        
-        pass
+        # Call the answer function with API key
+        return answer(scene, self.api_key)
