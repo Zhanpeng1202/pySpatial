@@ -3,6 +3,10 @@ from openai import OpenAI
 from agent.prompt.template import task_description, api_specification, example_problems, code_generation_prompt
 from pySpatial_Interface import Scene
 
+
+# TODO: Rewrite the codeAgent with structured output with pydantic
+
+
 def generate_code_from_query(scene: Scene, api_key: str = None):
     """
     Generate code using OpenAI GPT-4 model based on the scene question.

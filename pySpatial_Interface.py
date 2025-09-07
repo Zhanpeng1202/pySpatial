@@ -5,7 +5,7 @@ from typing import List, Union
 from tool.recontruct import reconstruct_3d
 from tool.segment import segment_image, segment_automatic  
 from tool.estimate_depth import estimate_depth
-from tool.camera_understanding import describe_camera_motion
+from tool.camera_understanding import analyze_camera_trajectory
 from tool.novel_view_synthesis import novel_view_synthesis, rotate_right, rotate_left, move_forward, move_backward, turn_around
 import re
 
@@ -89,7 +89,7 @@ class pySpatial:
         Args:
         """
         extrinsics = recon.extrinsics
-        return describe_camera_motion(extrinsics)
+        return analyze_camera_trajectory(extrinsics)
 
     @staticmethod
     def synthesize_novel_view(recon: Reconstruction, new_camera_pose, width=512, height=512, out_path=None):

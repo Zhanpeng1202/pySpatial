@@ -6,7 +6,8 @@ from openai import OpenAI
 from agent.prompt.template import answer_background, answer_prompt
 from pySpatial_Interface import Scene
 import numpy as np
-
+from pydantic import BaseModel
+from typing import Literal
 
 
 def o3d_image_to_data_url(o3d_img: "o3d.geometry.Image") -> str:
@@ -32,16 +33,24 @@ def o3d_image_to_data_url(o3d_img: "o3d.geometry.Image") -> str:
     return f"data:image/png;base64,{b64}"
 
 
+# def parse_answer(response: str) -> dict:
+
+
+class SpatialAnswer(BaseModel):
+    reasoning: str
+    answer: Literal["A", "B", "C", "D"]
+
+
 def answer(scene: Scene, api_key: str = None):
     """
-    Generate code using OpenAI GPT-4 model based on the scene question.
+    Generate structured answer using OpenAI API model based on the scene question.
     
     Args:
         scene: Scene object containing the question
         api_key: OpenAI API key (if not provided, will use OPENAI_API_KEY env var)
     
     Returns:
-        str: Generated code response from GPT-4
+        dict: Structured response with 'reasoning' and 'answer' fields.
     """
     if api_key is None:
         api_key = os.getenv('OPENAI_API_KEY')
@@ -60,7 +69,8 @@ def answer(scene: Scene, api_key: str = None):
         {base_prompt}
         the question is {scene.question}
         the generated code is {scene.code}
-        the visual clue is {scene.visual_clue}
+        the visual clue is pasted below:
+        
     """
     
     
@@ -72,7 +82,7 @@ def answer(scene: Scene, api_key: str = None):
     
     # Prepare messages based on visual clue type
     messages = [
-        {"role": "system", "content": "You are a helpful assistant that analyzes visual information and answers spatial reasoning questions."}
+        {"role": "system", "content": "You are a helpful assistant that analyzes visual information and answers spatial reasoning questions based on the generated visual clue."}
     ]
     
     # Handle visual clues based on type
@@ -87,13 +97,14 @@ def answer(scene: Scene, api_key: str = None):
         # Case 2: Visual clue is list of Open3D images
         messages.append({"role": "user", "content": query_for_vlm})
         for o3d_img in visual_clue:
+            print(f"-----Type of list item: {type(o3d_img)}")
             data_url = o3d_image_to_data_url(o3d_img)
             messages.append({
                 "role": "user",
                 "content": [
                     {
-                        "type": "image_url",
-                        "image_url": {"url": data_url}
+                        "type": "input_image",
+                        "image_url": data_url,
                     }
                 ]
             })
@@ -105,20 +116,23 @@ def answer(scene: Scene, api_key: str = None):
             "role": "user",
             "content": [
                 {
-                    "type": "image_url",
-                    "image_url": {"url": data_url}
+                    "type": "input_image",
+                    "image_url": data_url,
                 }
             ]
         })
     
-    # Make API call to OpenAI
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages,
-            max_tokens=2000
-        )
-        
-        return response.choices[0].message.content
-    except Exception as e:
-        raise RuntimeError(f"OpenAI API call failed: {str(e)}")
+
+    response = client.responses.parse(
+        model="gpt-4.1-mini",
+        input=messages,
+        max_output_tokens=2000,
+        text_format=SpatialAnswer
+    )
+    
+    
+    print(f"--------------------------------{response.output_parsed}")
+    return response.output_parsed
+
+
+

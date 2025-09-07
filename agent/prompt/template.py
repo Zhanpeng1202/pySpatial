@@ -197,11 +197,7 @@ answer_background = f"""
 """
 
 answer_prompt = """
-    Based on the code and the visual clue from the execution, can we first reason if the visual clue is helpful?
-    
-    1. Is the code generated correct, which means the code does not use functions outside the PySpatial API?
-    2. What is the answer of the question directly based on visual clue? If the answer is contained in the choice, answer it directly.
-    3. If the code is not correct or the visual clue is not helpful, we should discard the visual clue and directly answer it with the VLM capabilities.
+    Based on the code and the visual clue from the execution, answer the question.
 """
 
 
