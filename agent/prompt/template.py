@@ -203,4 +203,13 @@ answer_prompt = """
 
 
 
+# Prompt for the answer without visual clue
+without_visual_clue_background = """
+    Solve this spatial reasoning problem based on the question and the image input.
+    
+    First, analyze the question, extract useful information from the question description, 
+    then try to answer it based on the useful visual information.
+    
+    Give your best guess if you cannot find the best answer.
+"""
 

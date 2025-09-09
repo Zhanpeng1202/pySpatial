@@ -3,7 +3,7 @@ import base64
 from io import BytesIO
 from PIL import Image
 from openai import OpenAI
-from agent.prompt.template import answer_background, answer_prompt
+from agent.prompt.template import answer_background, answer_prompt, without_visual_clue_background
 from pySpatial_Interface import Scene
 import numpy as np
 from pydantic import BaseModel
@@ -31,9 +31,6 @@ def o3d_image_to_data_url(o3d_img: "o3d.geometry.Image") -> str:
     pil.save(buf, format="PNG")
     b64 = base64.b64encode(buf.getvalue()).decode("ascii")
     return f"data:image/png;base64,{b64}"
-
-
-# def parse_answer(response: str) -> dict:
 
 
 class SpatialAnswer(BaseModel):
@@ -73,14 +70,8 @@ def answer(scene: Scene, api_key: str = None):
         
     """
     
-    
-
-    
-    
-    # get the visual clue by scene.visual_clue
     visual_clue = scene.visual_clue
     
-    # Prepare messages based on visual clue type
     messages = [
         {"role": "system", "content": "You are a helpful assistant that analyzes visual information and answers spatial reasoning questions based on the generated visual clue."}
     ]
@@ -122,7 +113,6 @@ def answer(scene: Scene, api_key: str = None):
             ]
         })
     
-
     response = client.responses.parse(
         model="gpt-4.1-mini",
         input=messages,
@@ -130,9 +120,23 @@ def answer(scene: Scene, api_key: str = None):
         text_format=SpatialAnswer
     )
     
-    
     print(f"--------------------------------{response.output_parsed}")
     return response.output_parsed
 
 
-
+def answer_without_visual_clue(scene: Scene, api_key: str = None):
+    if api_key is None:
+        api_key = os.getenv('OPENAI_API_KEY')
+    
+    if not api_key:
+        raise ValueError("OpenAI API key not provided. Set OPENAI_API_KEY environment variable or pass api_key parameter.")
+    
+    client = OpenAI(api_key=api_key)
+    
+    
+    base_prompt = f"""
+        {without_visual_clue_background}
+        the question is {scene.question}
+    """
+    
+    # get the images from scene.images

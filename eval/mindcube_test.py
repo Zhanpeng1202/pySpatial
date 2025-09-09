@@ -127,7 +127,7 @@ def main():
     parser.add_argument("--output_file", type=str,
                        default="agent_code_generation_results_v3.json",
                        help="Output file path for results")
-    parser.add_argument("--max_entries", type=int, default=20,
+    parser.add_argument("--max_entries", type=int, default=50,
                        help="Maximum number of entries to process (for testing)")
     parser.add_argument("--api_key", type=str, default=None,
                        help="OpenAI API key (if not provided, uses OPENAI_API_KEY env var)")
