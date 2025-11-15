@@ -216,7 +216,7 @@ def main():
                        help="Output file path for results")
     parser.add_argument("--max_entries", type=int, default=None,
                        help="Maximum number of entries to process")
-    parser.add_argument("--api_key", type=str, default=None,
+    parser.add_argument("--api_key", type=str, default=os.getenv("OPENAI_API_KEY"),
                        help="OpenAI API key (if not provided, uses OPENAI_API_KEY env var)")
     parser.add_argument("--num_processes", type=int, default=16,
                        help="Number of processes to use (default: number of CPU cores)")
