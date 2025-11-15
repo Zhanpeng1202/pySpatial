@@ -27,6 +27,7 @@ import backoff
 from openai import OpenAI
 from pydantic import BaseModel
 from typing import Literal
+from pySpatial_Interface import agent, Scene
 
 # Rate limiting globals
 last_request_time = 0
@@ -53,6 +54,19 @@ class TrueFalseAnswer(BaseModel):
 class MultiChoiceAnswer(BaseModel):
     reasoning: str
     answer: str
+
+
+# wrap the quesiton into a scene object
+
+# solve the problem with agent 
+def sovle(input: Scene):
+    # initialize the agent
+    agent = Agent(api_key=os.getenv('OPENAI_API_KEY'))
+    agent.generate_code(input) # noted that the visual clue will be saved in the scene object
+    agent.execute(input)
+    agent.answer(input)
+    return agent.answer
+
 
 
 def rate_limit():
@@ -652,7 +666,7 @@ def main():
                        help="Path to images directory")
     parser.add_argument("--api-key", default=os.getenv('OPENAI_API_KEY'), help="OpenAI API key")
     parser.add_argument("--model", default="gpt-4o", help="Model to use")
-    parser.add_argument("--output", default="omni3d_results_structured.json", help="Output file")
+    parser.add_argument("--output", default="omni3d_results_structured_v1.json", help="Output file")
     parser.add_argument("--max-samples", type=int, default=None, help="Maximum number of samples to evaluate")
     parser.add_argument("--start-idx", type=int, default=0, help="Starting index for evaluation")
     parser.add_argument("--num-processes", type=int, default=16, help="Number of processes to use")

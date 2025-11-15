@@ -48,7 +48,6 @@ class Scene:
 
 class pySpatial:
     """Simple interface for 3D vision tools."""
-    # we disable other function for now
     
     @staticmethod
     def reconstruct(scene: Scene):
@@ -105,9 +104,6 @@ class pySpatial:
         """
         return novel_view_synthesis(recon, new_camera_pose, width, height, out_path)
     
-    @staticmethod
-    def estimate_depth(image):
-        return estimate_depth(image)
     
     @staticmethod
     def rotate_right(extrinsic, angle=None):
@@ -127,7 +123,7 @@ class pySpatial:
     
     @staticmethod
     def move_forward(extrinsic, distance=None):
-        """Move camera pose forward"""
+        """Move camera pose forward, Noted that a default small step is provided"""
         if distance is None:
             return move_forward(extrinsic)
         else:
