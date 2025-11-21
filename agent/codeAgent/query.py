@@ -40,7 +40,7 @@ def generate_code_from_query(scene: Scene, api_key: str = None):
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1-mini",
+            model="gpt-4.1",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant that generates Python code using the pySpatial API to solve spatial reasoning problems."},
                 {"role": "user", "content": query_for_vlm}

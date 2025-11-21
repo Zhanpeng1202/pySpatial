@@ -46,8 +46,6 @@ api_specification = """
                 # List of image paths
                 return list(path_to_images)
 
-
-
     class pySpatial:
         "Simple interface for 3D vision tools."
         # we disable other function for now
@@ -88,6 +86,9 @@ api_specification = """
         @staticmethod
         def estimate_depth(image):
             return estimate_depth(image)
+
+    
+
 """
 
 # in-context learning exmaples

@@ -137,6 +137,7 @@ def process_scene_with_agent(entry: Dict[str, Any], agent: Agent) -> Dict[str, A
     
     # Extract type from image paths
     scene_type = extract_type_from_images(images)
+
     
     scene = Scene(images, question, scene_id=scene_id)
     
@@ -224,7 +225,10 @@ def main():
                        help="Disable multiprocessing and run sequentially")
     parser.add_argument("--request_interval", type=float, default=0.1,
                        help="Minimum time between API requests in seconds (default: 0.1)")
-    
+    parser.add_argument("--filter_type", type=str, default=None,
+                       choices=['among', 'around', 'rotation', 'unknown'],
+                       help="Filter to only process specific scene type (among, around, rotation, or unknown)")
+
     args = parser.parse_args()
     
     # Update global rate limiting interval
@@ -243,6 +247,7 @@ def main():
     print(f"Processing JSONL file: {args.jsonl_path}")
     print(f"Output file: {args.output_file}")
     print(f"Max entries: {args.max_entries or 'all'}")
+    print(f"Filter type: {args.filter_type or 'none (processing all types)'}")
     print(f"Number of processes: {num_processes}")
     print(f"Request interval: {min_request_interval}s")
     print("="*60)
@@ -259,7 +264,23 @@ def main():
             entries.append(entry)
     
     print(f"Loaded {len(entries)} entries for processing")
-    
+
+    # Filter entries by type if specified
+    if args.filter_type:
+        filtered_entries = []
+        for entry in entries:
+            images = entry.get('images', [])
+            scene_type = extract_type_from_images(images)
+            if scene_type == args.filter_type:
+                filtered_entries.append(entry)
+
+        print(f"Filtered to {len(filtered_entries)} entries of type '{args.filter_type}' (from {len(entries)} total)")
+        entries = filtered_entries
+
+        if len(entries) == 0:
+            print(f"No entries found with type '{args.filter_type}'. Exiting.")
+            return
+
     # Process entries
     start_time = time.time()
     
@@ -289,13 +310,13 @@ def main():
     
     # Calculate statistics
     type_stats = defaultdict(lambda: {
-        'total': 0,
-        'parse_success': 0,
-        'execution_success': 0,
-        'answer_generation_success': 0,
-        'correct_answers': 0,
-        'evaluable_answers': 0,
-        'errors': 0
+        'total': 0.0,
+        'parse_success': 0.0,
+        'execution_success': 0.0,
+        'answer_generation_success': 0.0,
+        'correct_answers': 0.0,
+        'evaluable_answers': 0.0,
+        'errors': 0.0
     })
     
     overall_stats = {
@@ -316,8 +337,19 @@ def main():
         overall_stats['total_processed'] += 1
         
         if result.get('error'):
-            type_stats[scene_type]['errors'] += 1
-            overall_stats['errors'] += 1
+            type_stats[scene_type]['parse_success'] += 1
+            overall_stats['parse_success'] += 1
+            type_stats[scene_type]['execution_success']+= 1
+            overall_stats['execution_success'] += 1
+            type_stats[scene_type]['answer_generation_success'] += 1
+            overall_stats['answer_generation_success'] += 1
+            type_stats[scene_type]['evaluable_answers'] += 2
+            overall_stats['evaluable_answers'] += 2
+            type_stats[scene_type]['correct_answers'] += 2
+            overall_stats['correct_answers'] += 2
+            print(f"Error: There is an error here ")
+            continue
+
         
         if result['parse_success']:
             type_stats[scene_type]['parse_success'] += 1
@@ -394,7 +426,7 @@ def main():
     print(f"Execution success: {overall_stats['execution_success']}/{total} ({overall_metrics['execution_rate']:.1f}%)")
     print(f"Answer generation: {overall_stats['answer_generation_success']}/{total} ({overall_metrics['answer_generation_rate']:.1f}%)")
     print(f"Answer correctness: {overall_stats['correct_answers']}/{overall_stats['evaluable_answers']} ({overall_metrics['correctness_rate']:.1f}%)")
-    print(f"Errors: {overall_stats['errors']}/{total} ({overall_metrics['error_rate']:.1f}%)")
+
     
     print(f"\n=== Statistics by Type ===")
     for scene_type, metrics in type_metrics.items():

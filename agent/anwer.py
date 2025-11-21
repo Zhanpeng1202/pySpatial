@@ -114,7 +114,7 @@ def answer(scene: Scene, api_key: str = None):
         })
     
     response = client.responses.parse(
-        model="gpt-4.1-mini",
+        model="gpt-4.1",
         input=messages,
         max_output_tokens=2000,
         text_format=SpatialAnswer
