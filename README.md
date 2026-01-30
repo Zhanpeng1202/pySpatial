@@ -48,10 +48,11 @@ python demo.py
 
 Citation
 ---
-```
+```bibtex
   @inproceedings{luo2026pySpatial,
     title={pySpatial: Generating 3D Visual Programs for Zero-Shot Spatial Reasoning},
-    author={Luo, Zhanpeng and Zhang, Ce and Yong, Silong and Dai, Cunxi and Wang, Qianwei and Ran, Haoxi and Shi, Guanya and Sycara, Katia and Xie, Yaqi},
+    author={Luo, Zhanpeng and Zhang, Ce and Yong, Silong and Dai, Cunxi and
+    Wang, Qianwei and Ran, Haoxi and Shi, Guanya and Sycara, Katia and Xie, Yaqi},
     booktitle={The Fourteenth International Conference on Learning Representations},
     year={2026},
     url={https://openreview.net/forum?id=yv15C8ql24}
