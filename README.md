@@ -40,7 +40,7 @@ cd MindCube
 bash scripts/bash_scripts/download_data.bash
 ```
 
-## Quick Evaluation
+## Quick Evaluation on the MindCube Benchmark
 
 
 ```python
@@ -49,7 +49,8 @@ python demo.py
 ```
 
 
-Citation
+## Citation
+If you find this paper and code useful, please kindly cite our work:
 ---
 ```bibtex
   @inproceedings{luo2026pySpatial,
