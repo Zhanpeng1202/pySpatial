@@ -1,7 +1,7 @@
 # pySpatial: Generating 3D Visual Programs for Zero-Shot Spatial Reasoning
 
 <a href="https://pyspatial.github.io/"><img src='https://img.shields.io/badge/Website-pySpatial-green' alt='Website'></a>
-<a href="https://zhanpeng1202.github.io/data/Stealth_26_pySpatial.pdf"><img src='https://img.shields.io/badge/PDF-pySpatial-yellow' alt='PDF'></a>
+<a href="https://openreview.net/forum?id=yv15C8ql24"><img src='https://img.shields.io/badge/PDF-pySpatial-yellow' alt='PDF'></a>
 <a href="#citation"><img src='https://img.shields.io/badge/BibTex-pySpatial-blue' alt='Paper BibTex'></a>
 
 
