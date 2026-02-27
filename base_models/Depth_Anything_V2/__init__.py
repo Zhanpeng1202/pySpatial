@@ -1,1 +1,0 @@
-# Depth Anything V2 model package
