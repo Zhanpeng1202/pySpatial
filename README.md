@@ -9,7 +9,7 @@
 
 Clone the repository with the submodules by using:
 ```shell
-git clone --recursive git@github.com:Zhanpeng1202/Instant4D.git
+git clone --recursive git@github.com:Zhanpeng1202/pySpatial.git
 ```
 
 ## Environment
