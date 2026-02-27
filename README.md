@@ -23,7 +23,7 @@ pip install -r requirement.txt
 ```
 
 ```shell
-# save your LLM credential in the bash environment
+# save your LLM credential in the bash environment variable
 nano ~/.bashrc
 export OPENAI_API_KEY=YOUR_CHATGPT_KEY
 export GEMINI_API_KEY=YOUR_GEMINI_KEY
