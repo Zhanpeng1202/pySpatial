@@ -4,24 +4,26 @@
 <a href="https://openreview.net/forum?id=yv15C8ql24"><img src='https://img.shields.io/badge/PDF-pySpatial-yellow' alt='PDF'></a>
 <a href="#citation"><img src='https://img.shields.io/badge/BibTex-pySpatial-blue' alt='Paper BibTex'></a>
 
-
 ## Installation
 
 Clone the repository with the submodules by using:
+
 ```shell
 git clone --recursive git@github.com:Zhanpeng1202/pySpatial.git
 ```
 
 ## Environment
+
 Update requirements.txt with correct CUDA version for PyTorch and cuUML, i.e., replacing cu126 and cu12 with your CUDA version.
 
 ```shell
 conda create -n pySpatial python=3.10
 conda activate  pySpatial
 pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126 # change to your CUDA version 
-pip install -r requirement.txt
+pip3 install -r requirement.txt
 ```
 
+Add API key to enable VLM query
 ```shell
 # save your LLM credential in the bash environment variable
 nano ~/.bashrc
@@ -31,7 +33,7 @@ export OPEN_ROUTER_KEY=OTHER_MODELS
 ```
 
 ## Datasets & Benchmarks
-
+Download the Mindcube Benchmark, please refer to 
 ```shell
 mkdir datasets
 cd datasets
@@ -44,8 +46,11 @@ bash scripts/bash_scripts/download_data.bash
 
 
 ```python
-# wait me to update the script in March
-python demo.py
+# use reconstructor to do reconstruction and save point cloud for all query 
+python vggt_pipe.py 
+
+# evaluate on the MindCube benchmark
+python pySpatial_inference.py
 ```
 
 
