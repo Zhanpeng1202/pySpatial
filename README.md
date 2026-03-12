@@ -46,11 +46,7 @@ bash scripts/bash_scripts/download_data.bash
 
 
 ```python
-# use reconstructor to do reconstruction and save point cloud for all query 
-python vggt_pipe.py 
-
-# evaluate on the MindCube benchmark
-python pySpatial_inference.py
+# I will update code for this part in this week 
 ```
 
 
