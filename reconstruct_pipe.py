@@ -387,7 +387,7 @@ def main():
                        help="Directory containing input images (for single directory mode)")
     parser.add_argument("--jsonl_path", type=str, default="/data/Datasets/MindCube/data/raw/MindCube_tinybench.jsonl",
                        help="Path to JSONL file for batch processing")
-    parser.add_argument("--output_dir", type=str, default="/data/Datasets/MindCube/data/vggt_2",
+    parser.add_argument("--output_dir", type=str, default="/data/Datasets/MindCube/data/pySpatial_preprocessed",
                        help="Directory to save outputs (auto-generated if not specified)")
     parser.add_argument("--scene_name", type=str, default=None,
                        help="Scene name for auto output directory generation")
@@ -399,7 +399,7 @@ def main():
                        help="Confidence threshold for depth filtering")
     parser.add_argument("--max_entries", type=int, default=None,
                        help="Maximum number of JSONL entries to process (for testing)")
-    parser.add_argument("--gpu_ids", type=str, default="0,1",
+    parser.add_argument("--gpu_ids", type=str, default="0,7",
                        help="Comma-separated list of GPU IDs to use (e.g., '0,1,2,3')")
     parser.add_argument("--num_threads", type=int, default=1,
                        help="Number of threads per GPU (default: 1)")

@@ -1,9 +1,11 @@
 import os
 import glob
+import json
+import numpy as np
 from typing import List, Union
 
 from tool.recontruct import reconstruct_3d
-# from tool.segment import segment_image, segment_automatic  
+# from tool.segment import segment_image, segment_automatic
 # from tool.estimate_depth import estimate_depth
 from tool.camera_understanding import analyze_camera_trajectory
 from tool.novel_view_synthesis import novel_view_synthesis, rotate_right, rotate_left, move_forward, move_backward, turn_around
@@ -15,11 +17,11 @@ class Reconstruction:
         self.point_cloud = point_cloud
         self.extrinsics = extrinsics # list of 4 *4 numpy array
         self.intrinsics = intrinsics
-        
+
 
 class Scene:
     """Simple scene class that holds image data."""
-    
+
     def __init__(self, path_to_images: Union[str, List[str]], question: str = "", scene_id: str = None):
         self.question = question
         self.scene_id = scene_id
@@ -27,7 +29,7 @@ class Scene:
         self.reconstruction : Reconstruction = None
         self.code : str = None
         self.visual_clue = None
-        
+
     def _load_images(self, path_to_images: Union[str, List[str]]) -> List[str]:
         """Load image paths from directory or list."""
         if isinstance(path_to_images, str):
@@ -46,40 +48,132 @@ class Scene:
             return list(path_to_images)
 
 
+def _load_processed_scene(processed_dir):
+    """Load a previously processed scene from disk.
+
+    Supports two layouts:
+      1. reconstruct_pipe.py output: camera_matrices.npz + points.ply + processing_metadata.json
+      2. ReconstructionTool output: cameras.npy + points3d.npy + metadata.json
+
+    Returns a Reconstruction object, or None if the directory doesn't contain valid data.
+    """
+    if not os.path.isdir(processed_dir):
+        return None
+
+    point_cloud = None
+    extrinsics = None
+    intrinsics = None
+
+    # --- Layout 1: reconstruct_pipe.py ---
+    npz_path = os.path.join(processed_dir, 'camera_matrices.npz')
+    ply_path = os.path.join(processed_dir, 'points.ply')
+    meta_path = os.path.join(processed_dir, 'processing_metadata.json')
+
+    if os.path.exists(ply_path) and (os.path.exists(npz_path) or os.path.exists(meta_path)):
+        try:
+            import trimesh
+            pc = trimesh.load(ply_path)
+            point_cloud = np.asarray(pc.vertices)
+        except Exception:
+            return None
+
+        if os.path.exists(npz_path):
+            data = np.load(npz_path)
+            extrinsics = data.get('extrinsic', None)
+            intrinsics = data.get('intrinsic', None)
+        elif os.path.exists(meta_path):
+            with open(meta_path, 'r') as f:
+                metadata = json.load(f)
+            camera_poses = metadata.get('camera_poses', {})
+            if 'extrinsic' in camera_poses:
+                extrinsics = np.array(camera_poses['extrinsic'])
+            if 'intrinsic' in camera_poses:
+                intrinsics = np.array(camera_poses['intrinsic'])
+
+        return Reconstruction(point_cloud, extrinsics, intrinsics)
+
+    # --- Layout 2: ReconstructionTool._save_results ---
+    cameras_path = os.path.join(processed_dir, 'cameras.npy')
+    points_path = os.path.join(processed_dir, 'points3d.npy')
+
+    if os.path.exists(points_path):
+        point_cloud = np.load(points_path)
+        if os.path.exists(cameras_path):
+            extrinsics = np.load(cameras_path)
+        return Reconstruction(point_cloud, extrinsics, intrinsics)
+
+    return None
+
+
 class pySpatial:
     """Simple interface for 3D vision tools."""
-    
+
+    # Base directory where reconstruct_pipe.py saves processed scenes
+    PROCESSED_BASE_DIR = "/data/Datasets/MindCube/data/pySpatial_preprocessed"
+
     @staticmethod
-    def reconstruct(scene: Scene):
-        """3D reconstruction from scene images."""
-        
+    def reconstruct(scene: Scene, processed_dir: str = None):
+        """3D reconstruction from scene images.
+
+        If a previously processed result exists, load it instead of re-running
+        reconstruction. The lookup order is:
+          1. An explicit `processed_dir` argument
+          2. PROCESSED_BASE_DIR / scene.scene_id  (if scene_id is set)
+          3. Fall back to running reconstruct_3d()
+        """
+        # --- try to load cached reconstruction ---
+        recon = None
+
+        if processed_dir:
+            recon = _load_processed_scene(processed_dir)
+            if recon:
+                print(f"Loaded processed scene from: {processed_dir}")
+
+        if recon is None and scene.scene_id:
+            candidate = os.path.join(pySpatial.PROCESSED_BASE_DIR, scene.scene_id)
+            recon = _load_processed_scene(candidate)
+            if recon:
+                print(f"Loaded processed scene for scene_id '{scene.scene_id}' from: {candidate}")
+
+        if recon is not None:
+            scene.reconstruction = recon
+            return recon
+
+        # --- no cached result found, run reconstruction ---
         result = reconstruct_3d(scene.images, scene_id=scene.scene_id)
-        
+
         # Convert the raw result dictionary to a Reconstruction object
         point_cloud = result.get('points', None)
         cameras = result.get('cameras', None)
-        
+
         # Convert point cloud to numpy if it's a tensor
         if point_cloud is not None:
             if hasattr(point_cloud, 'cpu'):  # PyTorch tensor
                 point_cloud = point_cloud.cpu().numpy()
             elif hasattr(point_cloud, 'numpy'):  # Other tensor types
                 point_cloud = point_cloud.numpy()
-        
+
         # Extract extrinsics and intrinsics from cameras if available
         extrinsics = None
         intrinsics = None
-        
+
         if cameras is not None:
-            # Assume cameras contains extrinsic matrices
             extrinsics = cameras.cpu().numpy() if hasattr(cameras, 'cpu') else cameras
-        
+
+        # Also check for intrinsics in the result metadata
+        metadata = result.get('metadata', {})
+        if metadata and isinstance(metadata, dict):
+            camera_poses = metadata.get('camera_poses', {})
+            if isinstance(camera_poses, dict) and 'intrinsic' in camera_poses:
+                intrinsics = np.array(camera_poses['intrinsic'])
+
         # Create and return Reconstruction object
         reconstruction = Reconstruction(point_cloud, extrinsics, intrinsics)
-        
+
         # Store the raw result for debugging
         reconstruction._raw_result = result
-        
+
+        scene.reconstruction = reconstruction
         return reconstruction
     
     @staticmethod
