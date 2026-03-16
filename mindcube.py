@@ -23,7 +23,7 @@ import backoff
 
 # Add parent directory to Python path to import pySpatial_Interface
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from pySpatial_Interface import Agent, Scene
+from pySpatial_Interface import Agent, Scene, pySpatial
 
 # Rate limiting globals
 last_request_time = 0
@@ -257,12 +257,18 @@ def main():
     parser.add_argument("--filter_type", type=str, default=None,
                        choices=['among', 'around', 'rotation', 'unknown'],
                        help="Filter to only process specific scene type (among, around, rotation, or unknown)")
+    parser.add_argument("--processed_dir", type=str,
+                       default="/data/Datasets/MindCube/data/pySpatial_preprocessed",
+                       help="Base directory for pre-processed scene data")
 
     args = parser.parse_args()
     
     # Update global rate limiting interval
     global min_request_interval
     min_request_interval = args.request_interval
+
+    # Set the pre-processed scene base directory
+    pySpatial.PROCESSED_BASE_DIR = args.processed_dir
     
     if not os.path.exists(args.jsonl_path):
         raise ValueError(f"JSONL file not found: {args.jsonl_path}")

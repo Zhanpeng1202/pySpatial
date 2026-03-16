@@ -113,7 +113,7 @@ class pySpatial:
     """Simple interface for 3D vision tools."""
 
     # Base directory where reconstruct_pipe.py saves processed scenes
-    PROCESSED_BASE_DIR = "/data/Datasets/MindCube/data/pySpatial_preprocessed"
+    PROCESSED_BASE_DIR = None
 
     @staticmethod
     def reconstruct(scene: Scene, processed_dir: str = None):
@@ -133,7 +133,7 @@ class pySpatial:
             if recon:
                 print(f"Loaded processed scene from: {processed_dir}")
 
-        if recon is None and scene.scene_id:
+        if recon is None and scene.scene_id and pySpatial.PROCESSED_BASE_DIR:
             candidate = os.path.join(pySpatial.PROCESSED_BASE_DIR, scene.scene_id)
             recon = _load_processed_scene(candidate)
             if recon:
