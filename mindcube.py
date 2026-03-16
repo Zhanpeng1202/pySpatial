@@ -140,38 +140,50 @@ def process_scene_with_agent(entry: Dict[str, Any], agent: Agent) -> Dict[str, A
 
     
     scene = Scene(images, question, scene_id=scene_id)
-    
+
+    fallback_used = False
     try:
         # Step 1: Generate code using the agent (with retry)
         generated_response = call_agent_with_retry(agent, 'generate_code', scene)
-        
+
         # Parse the response to extract code patterns
         parsed_code = agent.parse_LLM_response(scene, generated_response)
         parse_success = parsed_code is not None and parsed_code.strip() != ""
-        
+
         visual_clue = None
         generated_answer = None
         answer_correct = False
         execution_success = False
         answer_generation_success = False
-        
+
         # Step 2: Execute code to get visual clue (if parsing was successful)
         if parse_success:
             visual_clue = agent.execute(scene)
             execution_success = visual_clue != "there is an error during code generation, no visual clue provided"
-            
+
             # Step 3: Generate answer using visual clue (with retry)
             if execution_success:
                 answer_response = call_agent_with_retry(agent, 'answer', scene, visual_clue)
                 answer_generation_success = answer_response is not None
-                
+
                 if answer_generation_success:
                     generated_answer = answer_response.answer
-                    
+
                     # Step 4: Evaluate correctness
                     if expected_answer and generated_answer:
                         answer_correct = evaluate_answer_correctness(generated_answer, expected_answer)
-        
+
+        # --- Fallback to basic QA if pySpatial pipeline didn't produce an answer ---
+        if not answer_generation_success or generated_answer is None:
+            print(f"[{scene_id}] pySpatial pipeline did not produce an answer, falling back to basic QA")
+            fallback_response = call_agent_with_retry(agent, 'basic_qa', scene)
+            if fallback_response is not None:
+                fallback_used = True
+                generated_answer = fallback_response.answer
+                answer_generation_success = True
+                if expected_answer and generated_answer:
+                    answer_correct = evaluate_answer_correctness(generated_answer, expected_answer)
+
         result = {
             "scene_id": scene_id,
             "scene_type": scene_type,
@@ -183,15 +195,31 @@ def process_scene_with_agent(entry: Dict[str, Any], agent: Agent) -> Dict[str, A
             "answer_generation_success": answer_generation_success,
             "generated_answer": generated_answer,
             "answer_correct": answer_correct,
+            "fallback_used": fallback_used,
         }
-        
+
         return result
-        
+
     except Exception as e:
         error_msg = str(e)
         print(f"Error processing {scene_id}: {error_msg}")
-        
-        # Return error result
+
+        # Fallback to basic QA on complete pipeline failure
+        fallback_answer = None
+        fallback_correct = False
+        fallback_success = False
+        try:
+            print(f"[{scene_id}] Pipeline error, falling back to basic QA")
+            fallback_response = call_agent_with_retry(agent, 'basic_qa', scene)
+            if fallback_response is not None:
+                fallback_answer = fallback_response.answer
+                fallback_success = True
+                fallback_used = True
+                if expected_answer and fallback_answer:
+                    fallback_correct = evaluate_answer_correctness(fallback_answer, expected_answer)
+        except Exception as fallback_e:
+            print(f"[{scene_id}] Basic QA fallback also failed: {fallback_e}")
+
         return {
             "scene_id": scene_id,
             "scene_type": scene_type,
@@ -200,9 +228,10 @@ def process_scene_with_agent(entry: Dict[str, Any], agent: Agent) -> Dict[str, A
             "expected_answer": expected_answer,
             "parse_success": False,
             "execution_success": False,
-            "answer_generation_success": False,
-            "generated_answer": None,
-            "answer_correct": False,
+            "answer_generation_success": fallback_success,
+            "generated_answer": fallback_answer,
+            "answer_correct": fallback_correct,
+            "fallback_used": fallback_used,
             "error": error_msg,
         }
 
@@ -213,7 +242,7 @@ def main():
                        default="/data/Datasets/MindCube/data/raw/MindCube_tinybench.jsonl",
                        help="Path to JSONL file containing scene information")
     parser.add_argument("--output_file", type=str,
-                       default="mindcube_eval_results.json",
+                       default="pySpatial_mindcube.json",
                        help="Output file path for results")
     parser.add_argument("--max_entries", type=int, default=None,
                        help="Maximum number of entries to process")
@@ -296,12 +325,15 @@ def main():
     else:
         # Multiprocessing
         print(f"Running with {num_processes} processes...")
-        
+
         # Prepare arguments for multiprocessing
         args_list = [(entry, args.api_key) for entry in entries]
-        
-        with Pool(processes=num_processes) as pool:
-            results = pool.map(process_scene_with_agent_wrapper, args_list)
+
+        pool = Pool(processes=num_processes, maxtasksperchild=4)
+        async_result = pool.map_async(process_scene_with_agent_wrapper, args_list)
+        results = async_result.get(timeout=3600)
+        pool.terminate()
+        pool.join()
     
     end_time = time.time()
     processing_time = end_time - start_time
@@ -443,7 +475,11 @@ if __name__ == "__main__":
     # This guard is important for multiprocessing
     import multiprocessing
     multiprocessing.set_start_method('spawn', force=True)
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\nInterrupted by user, shutting down...")
+        sys.exit(1)
 
 
 

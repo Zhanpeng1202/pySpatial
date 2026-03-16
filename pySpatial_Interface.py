@@ -8,7 +8,11 @@ from tool.recontruct import reconstruct_3d
 # from tool.segment import segment_image, segment_automatic
 # from tool.estimate_depth import estimate_depth
 from tool.camera_understanding import analyze_camera_trajectory
-from tool.novel_view_synthesis import novel_view_synthesis, rotate_right, rotate_left, move_forward, move_backward, turn_around
+from tool.novel_view_synthesis import (
+    novel_view_synthesis, rotate_right, rotate_left,
+    move_forward, move_backward, turn_around,
+    average_look_at_directions,
+)
 import re
 
 
@@ -200,21 +204,34 @@ class pySpatial:
     
     
     @staticmethod
-    def rotate_right(extrinsic, angle=None):
-        """Rotate camera pose to the right"""
-        if angle is None:
-            return rotate_right(extrinsic)
-        else:
-            return rotate_right(extrinsic, angle)
-    
+    def _get_rotation_axis(recon):
+        """Compute rotation axis from reconstruction extrinsics."""
+        if recon is not None and recon.extrinsics is not None:
+            extrinsics = recon.extrinsics
+            # Handle (N, 3, 4) or (N, 4, 4) arrays as list of matrices
+            if extrinsics.ndim == 3:
+                return average_look_at_directions(extrinsics)
+            # Single extrinsic — can't average, fall back
+        return None
+
     @staticmethod
-    def rotate_left(extrinsic, angle=None):
-        """Rotate camera pose to the left"""
+    def rotate_right(extrinsic, angle=None, recon=None):
+        """Rotate camera pose to the right. Uses recon extrinsics to compute rotation axis."""
+        axis = pySpatial._get_rotation_axis(recon)
         if angle is None:
-            return rotate_left(extrinsic)
+            return rotate_right(extrinsic, axis=axis)
         else:
-            return rotate_left(extrinsic, angle)
-    
+            return rotate_right(extrinsic, angle, axis=axis)
+
+    @staticmethod
+    def rotate_left(extrinsic, angle=None, recon=None):
+        """Rotate camera pose to the left. Uses recon extrinsics to compute rotation axis."""
+        axis = pySpatial._get_rotation_axis(recon)
+        if angle is None:
+            return rotate_left(extrinsic, axis=axis)
+        else:
+            return rotate_left(extrinsic, angle, axis=axis)
+
     @staticmethod
     def move_forward(extrinsic, distance=None):
         """Move camera pose forward, Noted that a default small step is provided"""
@@ -222,7 +239,7 @@ class pySpatial:
             return move_forward(extrinsic)
         else:
             return move_forward(extrinsic, distance)
-    
+
     @staticmethod
     def move_backward(extrinsic, distance=None):
         """Move camera pose backward"""
@@ -230,11 +247,12 @@ class pySpatial:
             return move_backward(extrinsic)
         else:
             return move_backward(extrinsic, distance)
-    
+
     @staticmethod
-    def turn_around(extrinsic):
-        """Turn camera pose around 180 degrees"""
-        return turn_around(extrinsic)
+    def turn_around(extrinsic, recon=None):
+        """Turn camera pose around 180 degrees. Uses recon extrinsics to compute rotation axis."""
+        axis = pySpatial._get_rotation_axis(recon)
+        return turn_around(extrinsic, axis=axis)
 
 
 class Agent:
@@ -281,9 +299,14 @@ class Agent:
     def answer(self, scene: Scene, visual_clue):
         # answer the question with visual clue
         from agent.anwer import answer
-        
+
         # Set the visual clue in the scene
         scene.visual_clue = visual_clue
-        
+
         # Call the answer function with API key
         return answer(scene, self.api_key)
+
+    def basic_qa(self, scene: Scene):
+        """Fallback: answer using only images + question, no pySpatial framework."""
+        from agent.anwer import answer_without_visual_clue
+        return answer_without_visual_clue(scene, self.api_key)

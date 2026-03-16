@@ -69,21 +69,21 @@ api_specification = """
             "
             return novel_view_synthesis(recon)
         
-        # methods to manipulate camera pose    
-        def rotate_right(extrinsic, angle=np.pi/2):
+        # methods to manipulate camera pose
+        # rotate_right/rotate_left/turn_around accept an optional recon argument
+        # to compute the rotation axis from all camera views (recommended)
+        def rotate_right(extrinsic, angle=np.pi/2, recon=None):
 
-        def rotate_left(extrinsic, angle=np.pi/2):
+        def rotate_left(extrinsic, angle=np.pi/2, recon=None):
 
         def move_forward(extrinsic, distance=0.1):
 
         def move_backward(extrinsic, distance=0.1):
 
-        def turn_around(extrinsic):
+        def turn_around(extrinsic, recon=None):
 
         
-        @staticmethod
-        def estimate_depth(image):
-            return estimate_depth(image)
+
 
     please follow the instructions to generate the code in the ```python ``` block.
     

@@ -26,3 +26,4 @@ scikit-learn
 open3d
 openai
 google-genai
+backoff

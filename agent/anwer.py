@@ -114,7 +114,7 @@ def answer(scene: Scene, api_key: str = None):
         })
     
     response = client.responses.parse(
-        model="gpt-4.1",
+        model="gpt-5",
         input=messages,
         max_output_tokens=2000,
         text_format=SpatialAnswer
@@ -125,18 +125,46 @@ def answer(scene: Scene, api_key: str = None):
 
 
 def answer_without_visual_clue(scene: Scene, api_key: str = None):
+    """Basic QA fallback: answer the question using only the images and question,
+    without the pySpatial framework (no reconstruction, no code generation)."""
     if api_key is None:
         api_key = os.getenv('OPENAI_API_KEY')
-    
+
     if not api_key:
         raise ValueError("OpenAI API key not provided. Set OPENAI_API_KEY environment variable or pass api_key parameter.")
-    
+
     client = OpenAI(api_key=api_key)
-    
-    
+
     base_prompt = f"""
         {without_visual_clue_background}
         the question is {scene.question}
     """
-    
-    # get the images from scene.images
+
+    # Build message content with images
+    content = [{"type": "input_text", "text": base_prompt}]
+
+    for image_path in scene.images:
+        if os.path.exists(image_path):
+            with open(image_path, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("ascii")
+            ext = os.path.splitext(image_path)[1].lower()
+            mime = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg"}.get(ext.lstrip("."), "image/png")
+            content.append({
+                "type": "input_image",
+                "image_url": f"data:{mime};base64,{b64}",
+            })
+
+    messages = [
+        {"role": "system", "content": "You are a helpful assistant that answers spatial reasoning questions based on the provided images."},
+        {"role": "user", "content": content}
+    ]
+
+    response = client.responses.parse(
+        model="gpt-5",
+        input=messages,
+        max_output_tokens=2000,
+        text_format=SpatialAnswer
+    )
+
+    print(f"[basic_qa] {response.output_parsed}")
+    return response.output_parsed

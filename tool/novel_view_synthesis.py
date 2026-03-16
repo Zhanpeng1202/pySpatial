@@ -1,4 +1,13 @@
+import os
 import numpy as np
+
+# Set up headless rendering environment before importing Open3D
+if "XDG_RUNTIME_DIR" not in os.environ:
+    xdg_dir = f"/tmp/runtime-{os.getenv('USER', 'default')}"
+    os.makedirs(xdg_dir, mode=0o700, exist_ok=True)
+    os.environ["XDG_RUNTIME_DIR"] = xdg_dir
+os.environ.setdefault("OPEN3D_CPU_RENDERING", "true")
+
 import open3d as o3d
 
 def zoom_out_K(K, scale=0.5):
@@ -24,8 +33,9 @@ def render_pcd_with_extrinsics(points_xyz, colors_rgb, K, E_world2cam, width, he
     # Apply zoom out to enlarge field of view
     K_zoomed = zoom_out_K(K, zoom_out_scale)
     
-    # Set up camera intrinsics
-    fx, fy, cx, cy = K_zoomed[0,0], K_zoomed[1,1], K_zoomed[0,2], K_zoomed[1,2]
+    # Set up camera intrinsics (cast to float for Open3D compatibility)
+    fx, fy = float(K_zoomed[0,0]), float(K_zoomed[1,1])
+    cx, cy = float(K_zoomed[0,2]), float(K_zoomed[1,2])
     intrinsic = o3d.camera.PinholeCameraIntrinsic(int(width), int(height), fx, fy, cx, cy)
 
     # Use OffscreenRenderer for headless rendering
@@ -66,43 +76,74 @@ def render_pcd_with_extrinsics(points_xyz, colors_rgb, K, E_world2cam, width, he
 
 
 # Noted that the camera pose follows opencv convention.
-# we want 4 API to manipulate the camera pose.
+# We use the average look-at direction of input frames as the rotation axis,
+# which approximates a "gravity" axis without needing explicit gravity info.
 
-def rotate_right(extrinsic, angle=np.pi/2):
+# ---- helpers to compute rotation axis from camera extrinsics ----
+
+def extract_look_at_direction(extrinsic):
+    """Extract the look-at direction (forward vector) from a camera extrinsic matrix."""
+    M = np.vstack([extrinsic, [0, 0, 0, 1]]) if extrinsic.shape == (3, 4) else extrinsic
+    R = M[:3, :3]
+    look_at = R[:, 2]  # camera looks along +Z in camera coords
+    return look_at / np.linalg.norm(look_at)
+
+
+def average_look_at_directions(extrinsics):
+    """Compute the average look-at direction from multiple camera extrinsics."""
+    directions = np.array([extract_look_at_direction(e) for e in extrinsics])
+    avg = np.mean(directions, axis=0)
+    avg = -avg / np.linalg.norm(avg)
+    return avg
+
+
+def _rotation_matrix_around_axis(axis, angle):
+    """Rodrigues' rotation: return a 4x4 rotation matrix around an arbitrary axis."""
+    axis = axis / np.linalg.norm(axis)
+    K = np.array([
+        [0, -axis[2], axis[1]],
+        [axis[2], 0, -axis[0]],
+        [-axis[1], axis[0], 0]
+    ])
+    R = np.eye(3) + np.sin(angle) * K + (1 - np.cos(angle)) * (K @ K)
+    M = np.eye(4)
+    M[:3, :3] = R
+    return M
+
+
+# ---- camera manipulation functions ----
+
+def rotate_right(extrinsic, angle=np.pi/2, axis=None):
     """
-    Rotate camera right (yaw rotation around Y-axis in camera coordinates)
+    Rotate camera right around the given axis.
     Args:
         extrinsic: 3x4 or 4x4 extrinsic matrix [R|t]
         angle: rotation angle in radians (default: 90 degrees)
+        axis: 3D rotation axis vector. If None, falls back to Y-axis [0,1,0].
     """
-    # Ensure we have 4x4 matrix
+    if axis is None:
+        axis = np.array([0.0, 1.0, 0.0])
+
     if extrinsic.shape == (3, 4):
         extr_4x4 = np.vstack([extrinsic, [0, 0, 0, 1]])
     else:
         extr_4x4 = extrinsic.copy()
-    
-    c, s = np.cos(-angle), np.sin(-angle)  # right turn (negative angle)
-    # Y-axis rotation matrix (yaw)
-    rot_y = np.array([
-        [c, 0, s, 0],
-        [0, 1, 0, 0],
-        [-s, 0, c, 0],
-        [0, 0, 0, 1]
-    ])
-    
-    # Apply rotation to the extrinsic matrix
-    new_extr = extr_4x4 @ rot_y
+
+    rot = _rotation_matrix_around_axis(axis, -angle)  # right = negative angle
+    new_extr = rot @ extr_4x4
     return new_extr[:3, :] if extrinsic.shape == (3, 4) else new_extr
 
-def rotate_left(extrinsic, angle=np.pi/2):
+
+def rotate_left(extrinsic, angle=np.pi/2, axis=None):
     """
-    Rotate camera left (yaw rotation around Y-axis in camera coordinates)
+    Rotate camera left around the given axis.
     Args:
         extrinsic: 3x4 or 4x4 extrinsic matrix [R|t]
         angle: rotation angle in radians (default: 90 degrees)
+        axis: 3D rotation axis vector. If None, falls back to Y-axis [0,1,0].
     """
-    # Left rotation is just negative right rotation
-    return rotate_right(extrinsic, -angle)
+    return rotate_right(extrinsic, -angle, axis=axis)
+
 
 def move_forward(extrinsic, distance=0.1):
     """
@@ -114,8 +155,7 @@ def move_forward(extrinsic, distance=0.1):
     if extrinsic.shape == (3, 4):
         R = extrinsic[:3, :3]
         t = extrinsic[:3, 3]
-        # Move forward along negative Z-axis in camera coordinates
-        new_t = t - distance * R[:, 2]  # Forward is -Z in camera coordinates
+        new_t = t - distance * R[:, 2]
         return np.hstack([R, new_t.reshape(-1, 1)])
     else:
         new_extr = extrinsic.copy()
@@ -123,6 +163,7 @@ def move_forward(extrinsic, distance=0.1):
         t = new_extr[:3, 3]
         new_extr[:3, 3] = t - distance * R[:, 2]
         return new_extr
+
 
 def move_backward(extrinsic, distance=0.1):
     """
@@ -134,7 +175,6 @@ def move_backward(extrinsic, distance=0.1):
     if extrinsic.shape == (3, 4):
         R = extrinsic[:3, :3]
         t = extrinsic[:3, 3]
-        # Move backward along positive Z-axis in camera coordinates
         new_t = t + distance * R[:, 2]
         return np.hstack([R, new_t.reshape(-1, 1)])
     else:
@@ -144,88 +184,89 @@ def move_backward(extrinsic, distance=0.1):
         new_extr[:3, 3] = t + distance * R[:, 2]
         return new_extr
 
-def turn_around(extrinsic):
-    """
-    Turn camera 180 degrees (around Y-axis)
-    """
-    return rotate_right(extrinsic, np.pi)
+
+def turn_around(extrinsic, axis=None):
+    """Turn camera 180 degrees around the given axis."""
+    return rotate_right(extrinsic, np.pi, axis=axis)
 
 def novel_view_synthesis(reconstruction, new_camera_pose, width=512, height=512, out_path=None):
     """
     Main novel view synthesis function that works with pySpatial Reconstruction objects.
-    
+
     Args:
         reconstruction: Reconstruction object with point_cloud, extrinsics, intrinsics
         new_camera_pose: 3x4 or 4x4 extrinsic matrix for the new viewpoint
         width: output image width
-        height: output image height  
+        height: output image height
         out_path: output image path (optional, if None returns image object directly)
-        
+
     Returns:
         str or image: path to the rendered image if out_path provided, otherwise image object
     """
     # Extract data from reconstruction
     point_cloud = reconstruction.point_cloud
     intrinsics = reconstruction.intrinsics
-    
+
+    # Check if reconstruction has colors attribute
+    colors_rgb = None
+    if hasattr(reconstruction, 'colors') and reconstruction.colors is not None:
+        colors_rgb = reconstruction.colors
+        if colors_rgb.max() > 1.0:
+            colors_rgb = colors_rgb / 255.0
+
     # Handle different point cloud formats
     if hasattr(point_cloud, 'points') and hasattr(point_cloud, 'colors'):
         # Open3D point cloud format
         points_xyz = np.asarray(point_cloud.points)
-        if len(point_cloud.colors) > 0:
+        if colors_rgb is None and len(point_cloud.colors) > 0:
             colors_rgb = np.asarray(point_cloud.colors)
-        else:
-            colors_rgb = None
     elif isinstance(point_cloud, dict):
-        # Dictionary format
         points_xyz = point_cloud.get('points', point_cloud.get('xyz'))
-        colors_rgb = point_cloud.get('colors', point_cloud.get('rgb'))
+        if colors_rgb is None:
+            colors_rgb = point_cloud.get('colors', point_cloud.get('rgb'))
     elif isinstance(point_cloud, np.ndarray):
-        # Raw numpy array (assume xyz only)
         if point_cloud.shape[1] == 3:
             points_xyz = point_cloud
-            colors_rgb = None
         elif point_cloud.shape[1] == 6:
             points_xyz = point_cloud[:, :3]
-            colors_rgb = point_cloud[:, 3:6]
+            if colors_rgb is None:
+                colors_rgb = point_cloud[:, 3:6]
         else:
             raise ValueError(f"Unsupported point cloud shape: {point_cloud.shape}")
     elif hasattr(point_cloud, 'cpu') or hasattr(point_cloud, 'numpy'):
-        # PyTorch tensor or similar - convert to numpy
-        if hasattr(point_cloud, 'cpu'):
-            point_cloud_np = point_cloud.cpu().numpy()
-        else:
-            point_cloud_np = point_cloud.numpy()
-            
+        point_cloud_np = point_cloud.cpu().numpy() if hasattr(point_cloud, 'cpu') else point_cloud.numpy()
         if point_cloud_np.shape[1] == 3:
             points_xyz = point_cloud_np
-            colors_rgb = None
         elif point_cloud_np.shape[1] == 6:
             points_xyz = point_cloud_np[:, :3]
-            colors_rgb = point_cloud_np[:, 3:6]
+            if colors_rgb is None:
+                colors_rgb = point_cloud_np[:, 3:6]
         else:
             raise ValueError(f"Unsupported point cloud shape: {point_cloud_np.shape}")
     else:
         raise ValueError(f"Unsupported point cloud type: {type(point_cloud)}")
-    
+
     # Handle intrinsics format
     if isinstance(intrinsics, dict):
         K = intrinsics.get('K', intrinsics.get('intrinsic_matrix'))
     elif isinstance(intrinsics, np.ndarray):
         K = intrinsics
     else:
-        # Default intrinsics if not provided
         K = np.array([[400, 0, width/2], [0, 400, height/2], [0, 0, 1]], dtype=np.float32)
-    
+
+    # If K is a batch (N, 3, 3), use the first one
+    if isinstance(K, np.ndarray) and K.ndim == 3:
+        K = K[0]
+
     # Ensure new_camera_pose is 4x4
     if new_camera_pose.shape == (3, 4):
         E_world2cam = np.vstack([new_camera_pose, [0, 0, 0, 1]])
     else:
         E_world2cam = new_camera_pose
-    
+
     # Render the novel view
     return render_pcd_with_extrinsics(
-        points_xyz, colors_rgb, K, E_world2cam, 
+        points_xyz, colors_rgb, K, E_world2cam,
         width, height, out_path=out_path
     )
     

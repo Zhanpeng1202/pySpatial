@@ -10,13 +10,10 @@ import open3d as o3d
 # Get absolute paths
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# For VGGT, add the model directory to path
+# For VGGT, add the model directory to path (lazy import below)
 VGGT_PATH = os.path.join(PROJECT_ROOT, 'base_models', 'vggt')
 if VGGT_PATH not in sys.path:
     sys.path.insert(0, VGGT_PATH)
-
-from vggt.models.vggt import VGGT
-from vggt.utils.load_fn import load_and_preprocess_images
 
 class ReconstructionTool:
     def __init__(self, config_path='configs/main.yaml', use_precomputed=True):
@@ -42,7 +39,8 @@ class ReconstructionTool:
     def _init_model(self):
         if not os.path.exists(self.checkpoint_path):
             raise FileNotFoundError(f"VGGT checkpoint not found: {self.checkpoint_path}")
-            
+
+        from vggt.models.vggt import VGGT
         # Initialize VGGT model and load checkpoint
         self.model = VGGT()
         checkpoint = torch.load(self.checkpoint_path, map_location='cpu')
@@ -204,6 +202,7 @@ class ReconstructionTool:
                 raise ValueError("Need at least 2 images for 3D reconstruction")
             
             # Load and preprocess images
+            from vggt.utils.load_fn import load_and_preprocess_images
             images = load_and_preprocess_images(image_paths).to(self.device)
             
             with torch.no_grad():
@@ -241,6 +240,7 @@ class ReconstructionTool:
         Returns:
             dict: Single-view reconstruction results
         """
+        from vggt.utils.load_fn import load_and_preprocess_images
         images = load_and_preprocess_images([image_path]).to(self.device)
         
         with torch.no_grad():
