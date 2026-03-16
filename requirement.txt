@@ -1,7 +1,6 @@
 # Dependancy for CUT3R / reconsturction 
-numpy==1.26.4
-torch
-torchvision
+numpy
+
 roma
 gradio
 matplotlib
@@ -11,9 +10,9 @@ scipy
 einops
 trimesh
 tensorboard
-pyglet<2
-huggingface-hub[torch]>=0.22
-viser
+pyglet
+huggingface-hub[torch]
+
 gradio
 lpips
 hydra-core
@@ -23,7 +22,7 @@ accelerate
 transformers
 scikit-learn
 
-# for pySpaital / agent 
+# for pySpaital / agent API
 open3d
 openai
-gemini
+google-genai

@@ -16,11 +16,24 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
-from vggt.models.vggt import VGGT
-from vggt.utils.load_fn import load_and_preprocess_images_square
-from vggt.utils.pose_enc import pose_encoding_to_extri_intri
-from vggt.utils.geometry import unproject_depth_map_to_point_map
-from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
+# Support both top-level 'vggt' install and repo-local path
+try:
+    from vggt.models.vggt import VGGT
+    from vggt.utils.load_fn import load_and_preprocess_images_square
+    from vggt.utils.pose_enc import pose_encoding_to_extri_intri
+    from vggt.utils.geometry import unproject_depth_map_to_point_map
+    from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
+except ModuleNotFoundError:
+    import sys as _sys, os as _os
+    _repo_root = _os.path.dirname(_os.path.abspath(__file__))
+    _vggt_root = _os.path.join(_repo_root, 'base_model', 'vggt')
+    if _vggt_root not in _sys.path:
+        _sys.path.insert(0, _vggt_root)
+    from vggt.models.vggt import VGGT
+    from vggt.utils.load_fn import load_and_preprocess_images_square
+    from vggt.utils.pose_enc import pose_encoding_to_extri_intri
+    from vggt.utils.geometry import unproject_depth_map_to_point_map
+    from vggt.utils.helper import create_pixel_coordinate_grid, randomly_limit_trues
 
 
 class VGGTProcessor:
@@ -372,7 +385,7 @@ def main():
     parser = argparse.ArgumentParser(description="VGGT Image Processing Pipeline")
     parser.add_argument("--input_dir", type=str, default="/data/Datasets/MindCube/data/other_all_image/among/bottle_118", 
                        help="Directory containing input images (for single directory mode)")
-    parser.add_argument("--jsonl_path", type=str, default="/data/Datasets/MindCube/data/raw/MindCube.jsonl",
+    parser.add_argument("--jsonl_path", type=str, default="/data/Datasets/MindCube/data/raw/MindCube_tinybench.jsonl",
                        help="Path to JSONL file for batch processing")
     parser.add_argument("--output_dir", type=str, default="/data/Datasets/MindCube/data/vggt_2",
                        help="Directory to save outputs (auto-generated if not specified)")
@@ -386,7 +399,7 @@ def main():
                        help="Confidence threshold for depth filtering")
     parser.add_argument("--max_entries", type=int, default=None,
                        help="Maximum number of JSONL entries to process (for testing)")
-    parser.add_argument("--gpu_ids", type=str, default="6,7",
+    parser.add_argument("--gpu_ids", type=str, default="0,1",
                        help="Comma-separated list of GPU IDs to use (e.g., '0,1,2,3')")
     parser.add_argument("--num_threads", type=int, default=1,
                        help="Number of threads per GPU (default: 1)")
