@@ -1,7 +1,7 @@
 # pySpatial: Generating 3D Visual Programs for Zero-Shot Spatial Reasoning
 
 <a href="https://pyspatial.github.io/"><img src='https://img.shields.io/badge/Website-pySpatial-green' alt='Website'></a>
-<a href="https://openreview.net/forum?id=yv15C8ql24"><img src='https://img.shields.io/badge/PDF-pySpatial-yellow' alt='PDF'></a>
+<a href="https://arxiv.org/pdf/2603.00905"><img src='https://img.shields.io/badge/PDF-pySpatial-yellow' alt='PDF'></a>
 <a href="#citation"><img src='https://img.shields.io/badge/BibTex-pySpatial-blue' alt='Paper BibTex'></a>
 
 ## Installation
@@ -46,8 +46,33 @@ bash scripts/bash_scripts/download_data.bash
 
 
 ```python
-# I will update code for this part in this week 
+  python -m reconstruct_pipe \
+        --mode batch \
+        --jsonl_path "/data/Datasets/MindCube/data/raw/MindCube_tinybench.jsonl" \
+        --base_data_path "/data/Datasets/MindCube/data" \
+        --gpu_ids "0,1"
+  # preprocess the Mindcube Tinybench, change the argument to the Mindcube dataset downloaded
+
+
+  # run evaluation on the mindcube dataset
+  python -m mindcube \
+        --jsonl_path "/data/Datasets/MindCube/data/raw/MindCube_tinybench.jsonl" \
+        --processed_dir "output/preprocessed" \
+        --num_threads 16 \
+  # noted that if you are using low-tier API account, there is a threshold, set num_thread to lower and increase the wait time in the codebase 
+    
 ```
+
+
+## Acknowledgement
+
+This work is built on many amazing research works and open-source projects, thanks a lot to all the authors for sharing!
+
+- [Gaussian-Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [diff-gaussian-rasterization](https://github.com/graphdeco-inria/diff-gaussian-rasterization)
+- [4d-gaussian-splatting](https://github.com/fudan-zvg/4d-gaussian-splatting)
+- [Mega-SAM](https://github.com/mega-sam/mega-sam)
+
+
 
 
 ## Citation

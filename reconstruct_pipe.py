@@ -383,14 +383,16 @@ def process_batch_multithreaded(jsonl_path, base_data_path, base_output_path,
 
 def main():
     parser = argparse.ArgumentParser(description="VGGT Image Processing Pipeline")
-    parser.add_argument("--input_dir", type=str, default="/data/Datasets/MindCube/data/other_all_image/among/bottle_118", 
+    parser.add_argument("--input_dir", type=str, default=None,
                        help="Directory containing input images (for single directory mode)")
-    parser.add_argument("--jsonl_path", type=str, default="/data/Datasets/MindCube/data/raw/MindCube_tinybench.jsonl",
+    parser.add_argument("--jsonl_path", type=str, default=None,
                        help="Path to JSONL file for batch processing")
-    parser.add_argument("--output_dir", type=str, default="/data/Datasets/MindCube/data/pySpatial_preprocessed",
-                       help="Directory to save outputs (auto-generated if not specified)")
+    parser.add_argument("--output_dir", type=str, default="output/preprocessed",
+                       help="Directory to save outputs")
     parser.add_argument("--scene_name", type=str, default=None,
                        help="Scene name for auto output directory generation")
+    parser.add_argument("--base_data_path", type=str, default=None,
+                       help="Base path to resolve relative image paths in JSONL entries")
     parser.add_argument("--mode", type=str, choices=['single', 'batch'], default='batch',
                        help="Processing mode: single directory or batch from JSONL")
     parser.add_argument("--seed", type=int, default=42,
@@ -438,7 +440,7 @@ def main():
                 else:
                     scene_name = input_path.name
             
-            base_output_dir = "/data/Datasets/MindCube/data/vggt_processed_preserved_all"
+            base_output_dir = args.output_dir
             args.output_dir = os.path.join(base_output_dir, scene_name)
             print(f"Auto-generated output directory: {args.output_dir}")
         
@@ -480,14 +482,12 @@ def main():
             raise ValueError(f"JSONL file not found: {args.jsonl_path}")
 
         # Set up paths
-        base_data_path = "/data/Datasets/MindCube/data"
-        if args.output_dir is None:
-            base_output_path = "/data/Datasets/MindCube/data/vggt_processed"
-        else:
-            base_output_path = args.output_dir
+        base_output_path = args.output_dir
 
         # Create base output directory if it doesn't exist
         os.makedirs(base_output_path, exist_ok=True)
+
+        base_data_path = args.base_data_path or os.path.dirname(args.jsonl_path)
 
         print(f"Processing JSONL file: {args.jsonl_path}")
         print(f"Base data path: {base_data_path}")

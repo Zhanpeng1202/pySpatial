@@ -239,7 +239,7 @@ def process_scene_with_agent(entry: Dict[str, Any], agent: Agent) -> Dict[str, A
 def main():
     parser = argparse.ArgumentParser(description="Evaluate pySpatial Agent on MindCube dataset with type statistics")
     parser.add_argument("--jsonl_path", type=str, 
-                       default="/data/Datasets/MindCube/data/raw/MindCube_tinybench.jsonl",
+                       required=True,
                        help="Path to JSONL file containing scene information")
     parser.add_argument("--output_file", type=str,
                        default="pySpatial_mindcube.json",
@@ -248,7 +248,7 @@ def main():
                        help="Maximum number of entries to process")
     parser.add_argument("--api_key", type=str, default=os.getenv("OPENAI_API_KEY"),
                        help="OpenAI API key (if not provided, uses OPENAI_API_KEY env var)")
-    parser.add_argument("--num_processes", type=int, default=16,
+    parser.add_argument("--num_processes", type=int, default=1,
                        help="Number of processes to use (default: number of CPU cores)")
     parser.add_argument("--disable_multiprocessing", action="store_true", 
                        help="Disable multiprocessing and run sequentially")
@@ -257,9 +257,8 @@ def main():
     parser.add_argument("--filter_type", type=str, default=None,
                        choices=['among', 'around', 'rotation', 'unknown'],
                        help="Filter to only process specific scene type (among, around, rotation, or unknown)")
-    parser.add_argument("--processed_dir", type=str,
-                       default="/data/Datasets/MindCube/data/pySpatial_preprocessed",
-                       help="Base directory for pre-processed scene data")
+    parser.add_argument("--processed_dir", type=str, default=None,
+                       help="Base directory for pre-processed scene data (optional)")
 
     args = parser.parse_args()
     

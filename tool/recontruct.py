@@ -16,13 +16,13 @@ if VGGT_PATH not in sys.path:
     sys.path.insert(0, VGGT_PATH)
 
 class ReconstructionTool:
-    def __init__(self, config_path='configs/main.yaml', use_precomputed=True):
+    def __init__(self, config_path='configs/main.yaml', use_precomputed=True, precomputed_base_dir=None):
         self.config_path = config_path
         self.model = None
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.dtype = torch.bfloat16 if torch.cuda.get_device_capability()[0] >= 8 else torch.float16
         self.use_precomputed = use_precomputed
-        self.precomputed_base_dir = "/data/Datasets/MindCube/data/vggt_processed_all"
+        self.precomputed_base_dir = precomputed_base_dir or os.path.join(PROJECT_ROOT, "data", "vggt_processed")
         self._load_config()
         if not self.use_precomputed:
             self._init_model()
@@ -379,7 +379,7 @@ if __name__ == "__main__":
         print("No example images found")
         print("\nTo test with MindCube data, use:")
         print("  results = reconstruct_3d('/path/to/scene/images')")
-        print("  # Will automatically load from /data/Datasets/MindCube/data/vggt_processed_all/{scene_name}/")
+        print("  # Will automatically load from data/vggt_processed/{scene_name}/")
     
     # Demonstrate mode switching
     print("\n--- Mode switching demonstration ---")
