@@ -48,29 +48,29 @@ bash scripts/bash_scripts/download_data.bash
 ```python
   python -m reconstruct_pipe \
         --mode batch \
-        --jsonl_path "/data/Datasets/MindCube/data/raw/MindCube_tinybench.jsonl" \
-        --base_data_path "/data/Datasets/MindCube/data" \
+        --jsonl_path "datasets/MindCube/data/raw/MindCube_tinybench.jsonl" \
+        --base_data_path "datasets/MindCube/data" \
         --gpu_ids "0,1"
   # preprocess the Mindcube Tinybench, change the argument to the Mindcube dataset downloaded
 
 
   # run evaluation on the mindcube dataset
   python -m mindcube \
-        --jsonl_path "/data/Datasets/MindCube/data/raw/MindCube_tinybench.jsonl" \
+        --jsonl_path "datasets/MindCube/data/raw/MindCube_tinybench.jsonl" \
         --processed_dir "output/preprocessed" \
-        --num_threads 16 \
-  # noted that if you are using low-tier API account, there is a threshold, set num_thread to lower and increase the wait time in the codebase 
+        --num_threads 1 \
+  # noted that if you are using high-tier API account, there is a larger threshold, set num_thread larger
     
 ```
 
 
 ## Acknowledgement
 
-This work is built on many amazing research works and open-source projects, thanks a lot to all the authors for sharing!
+This work is built on other amazing research works and open-source projects, thanks a lot to all the authors for sharing!
 
-- [Gaussian-Splatting](https://github.com/graphdeco-inria/gaussian-splatting) and [diff-gaussian-rasterization](https://github.com/graphdeco-inria/diff-gaussian-rasterization)
-- [4d-gaussian-splatting](https://github.com/fudan-zvg/4d-gaussian-splatting)
-- [Mega-SAM](https://github.com/mega-sam/mega-sam)
+- [VGGT](https://github.com/facebookresearch/vggt) and [CUT3R](https://github.com/CUT3R/CUT3R)
+- [MindCube](https://github.com/mll-lab-nu/MindCube) and [VPGen](https://github.com/j-min/VPGen)
+
 
 
 
