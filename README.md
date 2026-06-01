@@ -58,8 +58,8 @@ bash scripts/bash_scripts/download_data.bash
   python -m mindcube \
         --jsonl_path "datasets/MindCube/data/raw/MindCube_tinybench.jsonl" \
         --processed_dir "output/preprocessed" \
-        --num_threads 1 \
-  # noted that if you are using high-tier API account, there is a larger threshold, set num_thread larger
+        --num_processes 1 
+  # noted that if you are using high-tier API account, there is a larger threshold, set num_processes larger
     
 ```
 

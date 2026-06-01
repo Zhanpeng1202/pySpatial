@@ -16,8 +16,10 @@ from typing import Dict, Any, List
 from datetime import datetime
 from collections import defaultdict
 from multiprocessing import Pool, cpu_count
-from functools import partial
+from contextlib import contextmanager
 import time
+import re
+import signal
 import threading
 import backoff
 
@@ -29,6 +31,39 @@ from pySpatial_Interface import Agent, Scene, pySpatial
 last_request_time = 0
 min_request_interval = 0.1  # Minimum time between requests (100ms)
 request_lock = threading.Lock()
+
+# Hard wall-clock budget (seconds) for executing a single generated program.
+# Generated code is arbitrary and may infinite-loop, block on input(), or run
+# away on a huge computation; without this a single bad scene hangs the whole
+# evaluation. 0 disables the limit.
+exec_timeout = 180
+
+
+class SceneTimeout(Exception):
+    """Raised when a per-scene operation exceeds its wall-clock budget."""
+
+
+@contextmanager
+def time_limit(seconds):
+    """Abort the wrapped block with SceneTimeout after `seconds` (SIGALRM).
+
+    Only effective in the process's main thread (true for both the sequential
+    run and each multiprocessing worker). A non-positive value disables it.
+    """
+    if not seconds or seconds <= 0:
+        yield
+        return
+
+    def _handler(signum, frame):
+        raise SceneTimeout(f"operation exceeded {seconds}s time limit")
+
+    previous = signal.signal(signal.SIGALRM, _handler)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
 
 
 def rate_limit():
@@ -43,36 +78,40 @@ def rate_limit():
         last_request_time = time.time()
 
 
+MAX_API_TRIES = 5
+
 @backoff.on_exception(
     backoff.expo,
     Exception,
-    max_tries=5,
+    max_tries=MAX_API_TRIES,
     factor=2,
     jitter=backoff.full_jitter,
-    on_backoff=lambda details: print(f"Retrying {details['target'].__name__} (attempt {details['tries']}/{details['max_tries']})...")
+    # NOTE: backoff's `details` dict has no 'max_tries' key (only target, args,
+    # kwargs, tries, elapsed, wait); referencing it here raised KeyError:
+    # 'max_tries' inside the handler, masking the real error and breaking retries.
+    on_backoff=lambda details: print(
+        f"Retrying {details['target'].__name__} "
+        f"(attempt {details['tries']}/{MAX_API_TRIES}) after {details['wait']:.1f}s..."
+    ),
 )
 def call_agent_with_retry(agent, method_name, *args, **kwargs):
-    """Call agent method with rate limiting and retry logic"""
+    """Call agent method with rate limiting and retry logic.
+
+    The ``backoff.expo`` decorator drives the retry loop. For rate-limit-style
+    errors we pause before re-raising so the next attempt is less likely to be
+    throttled again; all errors are re-raised so backoff can retry them.
+    """
     rate_limit()
-    
+
     try:
         method = getattr(agent, method_name)
-        result = method(*args, **kwargs)
-        return result
+        return method(*args, **kwargs)
     except Exception as e:
-        error_msg = str(e)
-        
-        # Handle rate limit specifically
-        if "rate_limit" in error_msg.lower() or "429" in error_msg:
+        error_msg = str(e).lower()
+        if "rate_limit" in error_msg or "429" in error_msg or "tokens per min" in error_msg:
             print(f"Rate limit hit for {method_name}, waiting before retry...")
-            time.sleep(60) 
-        elif "tokens per min" in error_msg.lower():
-            print(f"Token rate limit hit for {method_name}, waiting before retry...")
-            time.sleep(60)  
-            raise  
-        else:
-            # For other errors, re-raise without modification
-            raise
+            time.sleep(60)
+        raise
 
 
 def extract_type_from_images(images: List[str]) -> str:
@@ -96,26 +135,105 @@ def extract_type_from_images(images: List[str]) -> str:
     return 'unknown'
 
 
+def _normalize_option(answer: str) -> str:
+    """Normalize an answer to its leading multiple-choice option letter (A-D).
+
+    The model only ever emits a bare letter, but the dataset's ``gt_answer`` may
+    carry extra formatting (e.g. "A. the cup"). Falls back to the stripped,
+    uppercased string when no leading A-D token is present.
+    """
+    if answer is None:
+        return ""
+    text = str(answer).strip().upper()
+    match = re.match(r"\s*([A-D])\b", text)
+    return match.group(1) if match else text
+
+
 def evaluate_answer_correctness(generated_answer: str, expected_answer: str) -> bool:
-    """Check if generated answer matches expected answer."""
-    return generated_answer == expected_answer
+    """Check if generated answer matches expected answer (option-letter aware)."""
+    return _normalize_option(generated_answer) == _normalize_option(expected_answer)
+
+
+def _new_stats() -> Dict[str, int]:
+    """Return a zeroed stats counter dict."""
+    return {
+        'total': 0,
+        'parse_success': 0,
+        'execution_success': 0,
+        'answer_generation_success': 0,
+        'correct_answers': 0,
+        'evaluable_answers': 0,
+        'errors': 0,
+    }
+
+
+def accumulate_stats(stats: Dict[str, int], result: Dict[str, Any]) -> None:
+    """Update a single stats counter dict from one pipeline result.
+
+    A result that errored is counted toward ``errors`` but still contributes its
+    real success/correctness fields (the error path may have produced a fallback
+    answer), so metrics are no longer inflated.
+    """
+    stats['total'] += 1
+    if result.get('error'):
+        stats['errors'] += 1
+    if result.get('parse_success'):
+        stats['parse_success'] += 1
+    if result.get('execution_success'):
+        stats['execution_success'] += 1
+    if result.get('answer_generation_success'):
+        stats['answer_generation_success'] += 1
+    if result.get('expected_answer') and result.get('generated_answer'):
+        stats['evaluable_answers'] += 1
+        if result.get('answer_correct'):
+            stats['correct_answers'] += 1
+
+
+def compute_metrics(stats: Dict[str, int]) -> Dict[str, Any]:
+    """Convert raw counters into percentage rates for reporting."""
+    total = stats['total']
+    evaluable = stats['evaluable_answers']
+
+    def pct(numerator: int, denominator: int) -> float:
+        return round(numerator / denominator * 100, 2) if denominator > 0 else 0
+
+    return {
+        'count': total,
+        'parse_rate': pct(stats['parse_success'], total),
+        'execution_rate': pct(stats['execution_success'], total),
+        'answer_generation_rate': pct(stats['answer_generation_success'], total),
+        'correctness_rate': pct(stats['correct_answers'], evaluable),
+        'error_rate': pct(stats['errors'], total),
+        'evaluable_count': evaluable,
+        'error_count': stats['errors'],
+    }
 
 
 def process_scene_with_agent_wrapper(args_tuple) -> Dict[str, Any]:
     """
     Wrapper function for multiprocessing that creates its own agent instance.
-    
+
+    Because workers are started with the ``spawn`` method, module-level config
+    set in ``main()`` is NOT inherited; we re-apply it here per child process.
+    Note that rate limiting is therefore per-process, not global.
+
     Args:
-        args_tuple: Tuple of (entry, api_key)
-        
+        args_tuple: Tuple of (entry, api_key, request_interval, processed_dir, scene_exec_timeout)
+
     Returns:
         Dictionary containing the complete pipeline results including type information
     """
-    entry, api_key = args_tuple
-    
+    entry, api_key, request_interval, processed_dir, scene_exec_timeout = args_tuple
+
+    # Re-apply config that the parent set in main() (spawn does not inherit it).
+    global min_request_interval, exec_timeout
+    min_request_interval = request_interval
+    exec_timeout = scene_exec_timeout
+    pySpatial.PROCESSED_BASE_DIR = processed_dir
+
     # Create agent instance for this process
     agent = Agent(api_key=api_key)
-    
+
     return process_scene_with_agent(entry, agent)
 
 
@@ -145,6 +263,7 @@ def process_scene_with_agent(entry: Dict[str, Any], agent: Agent) -> Dict[str, A
     try:
         # Step 1: Generate code using the agent (with retry)
         generated_response = call_agent_with_retry(agent, 'generate_code', scene)
+        print(f"[{scene_id}] STEP 1 generate_code: {len(generated_response or '')} chars returned")
 
         # Parse the response to extract code patterns
         parsed_code = agent.parse_LLM_response(scene, generated_response)
@@ -156,20 +275,36 @@ def process_scene_with_agent(entry: Dict[str, Any], agent: Agent) -> Dict[str, A
         execution_success = False
         answer_generation_success = False
 
-        # Step 2: Execute code to get visual clue (if parsing was successful)
-        if parse_success:
-            visual_clue = agent.execute(scene)
-            execution_success = visual_clue != "there is an error during code generation, no visual clue provided"
+        if not parse_success:
+            preview = (generated_response or "").strip().replace("\n", " ")[:200]
+            print(f"[{scene_id}] STEP 2 parse FAILED: no ```python``` block found "
+                  f"(response preview: {preview!r})")
+        else:
+            print(f"[{scene_id}] STEP 2 parse OK: extracted {len(parsed_code)} chars of code")
 
-            # Step 3: Generate answer using visual clue (with retry)
+        # Step 3: Execute code to get visual clue (if parsing was successful).
+        # Bounded by a wall-clock limit so a runaway generated program can't
+        # stall the whole run; a timeout is treated as a failed execution.
+        if parse_success:
+            try:
+                with time_limit(exec_timeout):
+                    visual_clue = agent.execute(scene)
+            except SceneTimeout as te:
+                print(f"[{scene_id}] code execution timed out: {te}")
+                visual_clue = "there is an error during code generation, no visual clue provided"
+            execution_success = visual_clue != "there is an error during code generation, no visual clue provided"
+            print(f"[{scene_id}] STEP 3 execute: success={execution_success}")
+
+            # Step 4: Generate answer using visual clue (with retry)
             if execution_success:
                 answer_response = call_agent_with_retry(agent, 'answer', scene, visual_clue)
                 answer_generation_success = answer_response is not None
+                print(f"[{scene_id}] STEP 4 answer: success={answer_generation_success}")
 
                 if answer_generation_success:
                     generated_answer = answer_response.answer
 
-                    # Step 4: Evaluate correctness
+                    # Step 5: Evaluate correctness
                     if expected_answer and generated_answer:
                         answer_correct = evaluate_answer_correctness(generated_answer, expected_answer)
 
@@ -242,9 +377,9 @@ def main():
                        required=True,
                        help="Path to JSONL file containing scene information")
     parser.add_argument("--output_file", type=str,
-                       default="pySpatial_mindcube.json",
+                       default="pySpatial_mindcube_test.json",
                        help="Output file path for results")
-    parser.add_argument("--max_entries", type=int, default=None,
+    parser.add_argument("--max_entries", type=int, default=1000,
                        help="Maximum number of entries to process")
     parser.add_argument("--api_key", type=str, default=os.getenv("OPENAI_API_KEY"),
                        help="OpenAI API key (if not provided, uses OPENAI_API_KEY env var)")
@@ -259,12 +394,17 @@ def main():
                        help="Filter to only process specific scene type (among, around, rotation, or unknown)")
     parser.add_argument("--processed_dir", type=str, default=None,
                        help="Base directory for pre-processed scene data (optional)")
+    parser.add_argument("--exec_timeout", type=float, default=180,
+                       help="Per-scene wall-clock limit (seconds) for executing generated "
+                            "code; a runaway program is treated as a failed execution. "
+                            "Set to 0 to disable (default: 180)")
 
     args = parser.parse_args()
     
-    # Update global rate limiting interval
-    global min_request_interval
+    # Update global rate limiting interval and per-scene execution timeout
+    global min_request_interval, exec_timeout
     min_request_interval = args.request_interval
+    exec_timeout = args.exec_timeout
 
     # Set the pre-processed scene base directory
     pySpatial.PROCESSED_BASE_DIR = args.processed_dir
@@ -284,6 +424,7 @@ def main():
     print(f"Filter type: {args.filter_type or 'none (processing all types)'}")
     print(f"Number of processes: {num_processes}")
     print(f"Request interval: {min_request_interval}s")
+    print(f"Per-scene exec timeout: {exec_timeout or 'disabled'}s")
     print("="*60)
     
     # Load all entries first
@@ -331,8 +472,13 @@ def main():
         # Multiprocessing
         print(f"Running with {num_processes} processes...")
 
-        # Prepare arguments for multiprocessing
-        args_list = [(entry, args.api_key) for entry in entries]
+        # Prepare arguments for multiprocessing. request_interval and
+        # processed_dir are passed explicitly because spawn workers do not
+        # inherit the globals set above.
+        args_list = [
+            (entry, args.api_key, min_request_interval, pySpatial.PROCESSED_BASE_DIR, exec_timeout)
+            for entry in entries
+        ]
 
         pool = Pool(processes=num_processes, maxtasksperchild=4)
         async_result = pool.map_async(process_scene_with_agent_wrapper, args_list)
@@ -342,100 +488,25 @@ def main():
     
     end_time = time.time()
     processing_time = end_time - start_time
+    avg_time_per_entry = processing_time / len(entries) if entries else 0.0
     print(f"\n✓ Processing completed in {processing_time:.2f} seconds")
-    print(f"Average time per entry: {processing_time/len(entries):.2f} seconds")
-    
-    # Calculate statistics
-    type_stats = defaultdict(lambda: {
-        'total': 0.0,
-        'parse_success': 0.0,
-        'execution_success': 0.0,
-        'answer_generation_success': 0.0,
-        'correct_answers': 0.0,
-        'evaluable_answers': 0.0,
-        'errors': 0.0
-    })
-    
-    overall_stats = {
-        'total_processed': 0,
-        'parse_success': 0,
-        'execution_success': 0,
-        'answer_generation_success': 0,
-        'correct_answers': 0,
-        'evaluable_answers': 0,
-        'errors': 0
-    }
-    
-    for result in results:
-        scene_type = result['scene_type']
-        
-        # Update statistics
-        type_stats[scene_type]['total'] += 1
-        overall_stats['total_processed'] += 1
-        
-        if result.get('error'):
-            type_stats[scene_type]['parse_success'] += 1
-            overall_stats['parse_success'] += 1
-            type_stats[scene_type]['execution_success']+= 1
-            overall_stats['execution_success'] += 1
-            type_stats[scene_type]['answer_generation_success'] += 1
-            overall_stats['answer_generation_success'] += 1
-            type_stats[scene_type]['evaluable_answers'] += 2
-            overall_stats['evaluable_answers'] += 2
-            type_stats[scene_type]['correct_answers'] += 2
-            overall_stats['correct_answers'] += 2
-            print(f"Error: There is an error here ")
-            continue
+    print(f"Average time per entry: {avg_time_per_entry:.2f} seconds")
 
-        
-        if result['parse_success']:
-            type_stats[scene_type]['parse_success'] += 1
-            overall_stats['parse_success'] += 1
-        
-        if result['execution_success']:
-            type_stats[scene_type]['execution_success'] += 1
-            overall_stats['execution_success'] += 1
-        
-        if result['answer_generation_success']:
-            type_stats[scene_type]['answer_generation_success'] += 1
-            overall_stats['answer_generation_success'] += 1
-        
-        if result['expected_answer'] and result['generated_answer']:
-            type_stats[scene_type]['evaluable_answers'] += 1
-            overall_stats['evaluable_answers'] += 1
-            
-            if result['answer_correct']:
-                type_stats[scene_type]['correct_answers'] += 1
-                overall_stats['correct_answers'] += 1
-    
-    # Calculate rates for each type
-    type_metrics = {}
-    for scene_type, stats in type_stats.items():
-        total = stats['total']
-        type_metrics[scene_type] = {
-            'count': total,
-            'parse_rate': round(stats['parse_success'] / total * 100, 2) if total > 0 else 0,
-            'execution_rate': round(stats['execution_success'] / total * 100, 2) if total > 0 else 0,
-            'answer_generation_rate': round(stats['answer_generation_success'] / total * 100, 2) if total > 0 else 0,
-            'correctness_rate': round(stats['correct_answers'] / stats['evaluable_answers'] * 100, 2) if stats['evaluable_answers'] > 0 else 0,
-            'error_rate': round(stats['errors'] / total * 100, 2) if total > 0 else 0,
-            'evaluable_count': stats['evaluable_answers'],
-            'error_count': stats['errors']
-        }
-    
-    # Calculate overall metrics
-    total = overall_stats['total_processed']
-    overall_metrics = {
-        'total_count': total,
-        'parse_rate': round(overall_stats['parse_success'] / total * 100, 2) if total > 0 else 0,
-        'execution_rate': round(overall_stats['execution_success'] / total * 100, 2) if total > 0 else 0,
-        'answer_generation_rate': round(overall_stats['answer_generation_success'] / total * 100, 2) if total > 0 else 0,
-        'correctness_rate': round(overall_stats['correct_answers'] / overall_stats['evaluable_answers'] * 100, 2) if overall_stats['evaluable_answers'] > 0 else 0,
-        'error_rate': round(overall_stats['errors'] / total * 100, 2) if total > 0 else 0,
-        'evaluable_count': overall_stats['evaluable_answers'],
-        'error_count': overall_stats['errors']
-    }
-    
+    # Accumulate per-type statistics, then derive overall by summing across types.
+    type_stats = defaultdict(_new_stats)
+    for result in results:
+        accumulate_stats(type_stats[result['scene_type']], result)
+
+    overall_stats = _new_stats()
+    for stats in type_stats.values():
+        for key in overall_stats:
+            overall_stats[key] += stats[key]
+
+    type_metrics = {scene_type: compute_metrics(stats) for scene_type, stats in type_stats.items()}
+
+    overall_metrics = compute_metrics(overall_stats)
+    overall_metrics['total_count'] = overall_metrics.pop('count')
+
     # Save results
     output_path = Path.cwd() / args.output_file
     
@@ -443,7 +514,7 @@ def main():
         "processing_timestamp": datetime.now().isoformat(),
         "jsonl_source": args.jsonl_path,
         "processing_time_seconds": round(processing_time, 2),
-        "avg_time_per_entry": round(processing_time/len(entries), 2),
+        "avg_time_per_entry": round(avg_time_per_entry, 2),
         "num_processes_used": num_processes,
         "overall_metrics": overall_metrics,
         "type_metrics": type_metrics,
@@ -456,6 +527,7 @@ def main():
     print(f"\n✓ Results saved to: {output_path}")
     
     # Print summary statistics
+    total = overall_stats['total']
     print(f"\n=== MindCube Evaluation Results ===")
     print(f"Total entries processed: {total}")
     print(f"\n=== Overall Performance ===")

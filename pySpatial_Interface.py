@@ -277,18 +277,6 @@ class Agent:
         """
         Execute a code string with a scene and return the visual clue result.
         """
-        # try:
-        #     from agent.codeAgent.execute import execute_code
-        #     program = execute_code(scene.code)
-            
-        #     visual_clue = program(scene)
-        #     return visual_clue
-        # except Exception as e:
-        #     import traceback
-        #     error_details = f"Execution failed: {str(e)}\nTraceback: {traceback.format_exc()}"
-        #     # Store the error for detailed reporting
-        #     self.last_execution_error = error_details
-        #     return f"there is an error during code generation, no visual clue provided. Error: {str(e)}"
         
         from agent.codeAgent.execute import execute_code
         program = execute_code(scene.code)

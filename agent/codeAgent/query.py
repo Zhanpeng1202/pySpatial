@@ -24,7 +24,7 @@ def generate_code_from_query(scene: Scene, api_key: str = None):
     if not api_key:
         raise ValueError("OpenAI API key not provided. Set OPENAI_API_KEY environment variable or pass api_key parameter.")
     
-    client = OpenAI(api_key=api_key)
+    client = OpenAI(api_key=api_key, timeout=180)
     
     base_prompt = f"""
         {task_description}
@@ -40,16 +40,27 @@ def generate_code_from_query(scene: Scene, api_key: str = None):
     
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1",
+            model="gpt-5",
             messages=[
                 {"role": "system", "content": "You are a helpful assistant that generates Python code using the pySpatial API to solve spatial reasoning problems."},
                 {"role": "user", "content": query_for_vlm}
             ],
-            temperature=0.7,
-            max_tokens=1000
+            max_completion_tokens=4000
         )
-        
-        return response.choices[0].message.content
+
+        choice = response.choices[0]
+        content = choice.message.content or ""
+
+        # DEBUG: surface why code generation may have produced no usable output.
+        # finish_reason == 'length' with empty content means the token budget was
+        # consumed (e.g. by reasoning) before any visible answer was emitted.
+        print(f"[generate_code] finish_reason={choice.finish_reason} "
+              f"content_len={len(content)} usage={response.usage}")
+        if not content.strip():
+            print(f"[generate_code] WARNING: empty content from model "
+                  f"(finish_reason={choice.finish_reason}); the code block parse will fail.")
+
+        return content
         
     except Exception as e:
         raise Exception(f"Error calling OpenAI API: {str(e)}")

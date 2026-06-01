@@ -27,3 +27,9 @@ open3d
 openai
 google-genai
 backoff
+
+python -m reconstruct_pipe \
+        --mode batch \
+        --jsonl_path "datasets/MindCube/data/raw/MindCube_tinybench.jsonl" \
+        --base_data_path "datasets/MindCube/data" \
+        --gpu_ids "0,1,2,3,4,5"
