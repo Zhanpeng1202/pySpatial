@@ -55,7 +55,7 @@ def answer(scene: Scene, api_key: str = None):
     if not api_key:
         raise ValueError("OpenAI API key not provided. Set OPENAI_API_KEY environment variable or pass api_key parameter.")
     
-    client = OpenAI(api_key=api_key, timeout=180)
+    client = OpenAI(api_key=api_key, timeout=30)
     
     base_prompt = f"""
         {answer_background}
