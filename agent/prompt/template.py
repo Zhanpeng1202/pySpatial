@@ -2,82 +2,74 @@
 
 
 task_description = """
-    You are now asked to solve a spatial reasoning related problem. The input are image(s) and a natural langugae question that
-    specifically designed to test your spatial reasoning ability.
-    It is not trivial to solve these tasks directly as a vision langugae model. 
-    However, You have access to the following Python API:
+    You are asked to solve a spatial reasoning problem. The input is one or more images plus a
+    natural language question designed to test spatial reasoning, which is hard to answer directly
+    as a vision language model. To help, you have access to the following Python API:
 """
 
 api_specification = """
-    This is pySpatial API. We provide 3D reconstruction to help solve this problem. We provide a Scene class that contains the image(s) and a question.
-    
+    This is the pySpatial API. It provides 3D reconstruction tools to help solve the problem.
+    A Scene holds the input image(s) and the question.
+
     class Reconstruction:
+        # point_cloud : numpy array of 3D points
+        # extrinsics  : array/list of per-view camera matrices, shape (N, 4, 4) or (N, 3, 4);
+        #               extrinsics[i] is the camera pose of view i (0-based: image 1 -> index 0)
+        # intrinsics  : camera intrinsics, may be None
         def __init__(self, point_cloud, extrinsics, intrinsics):
             self.point_cloud = point_cloud
             self.extrinsics = extrinsics
             self.intrinsics = intrinsics
-        
+
     class Scene:
-        "Simple scene class that holds image data."
-        
+        "Holds the input image(s) and the question."
         def __init__(self, path_to_images: Union[str, List[str]], question: str = ""):
             self.question = question
             self.images = self._load_images(path_to_images)
             self.reconstruction : Reconstruction = None
-        
+
     class pySpatial:
-        "Simple interface for 3D vision tools."
-        # we disable other function for now
-        
-        @staticmethod
-        def reconstruct(scene: Scene):
-            "3D reconstruction from scene images."
-            
-            return reconstruct_3d(scene.images)
-        
-        @staticmethod
-        def describe_camera_motion(recon: Reconstruction):
-            "Describe camera motion from reconstruction results.
-            Args:
-            "
-            extrinsics = recon.extrinsics
-            return describe_camera_motion(extrinsics)
+        "Interface for 3D vision tools."
 
         @staticmethod
-        def synthesize_novel_view(recon: Reconstruction, new_camera_pose):
-            "Generate novel view synthesis from reconstruction results.
-            Args:
-            "
-            return novel_view_synthesis(recon)
-        
-        # methods to manipulate camera pose
-        # rotate_right/rotate_left/turn_around accept an optional recon argument
-        # to compute the rotation axis from all camera views (recommended)
-        def rotate_right(extrinsic, angle=np.pi/2, recon=None):
+        def reconstruct(scene: Scene) -> Reconstruction:
+            "Reconstruct the scene from its images. Returns a Reconstruction (point_cloud, extrinsics, intrinsics)."
 
-        def rotate_left(extrinsic, angle=np.pi/2, recon=None):
+        @staticmethod
+        def describe_camera_motion(recon: Reconstruction) -> str:
+            "Analyze the camera trajectory across views and return a text description of the camera motion."
 
-        def move_forward(extrinsic, distance=0.1):
+        @staticmethod
+        def synthesize_novel_view(recon: Reconstruction, new_camera_pose, width=512, height=512, out_path=None):
+            "Render the scene from a new viewpoint (a 3x4 or 4x4 extrinsic matrix).
+            Returns an image object when out_path is omitted, or a path string when out_path is given.
+            For visual clues, do NOT pass out_path so an image object is returned."
 
-        def move_backward(extrinsic, distance=0.1):
+        # Camera-pose helpers. rotate_right/rotate_left/turn_around take an optional recon argument
+        # used to compute the rotation axis from all views (recommended). When angle/distance are
+        # omitted, a sensible default step is used.
+        def rotate_right(extrinsic, angle=None, recon=None):
+
+        def rotate_left(extrinsic, angle=None, recon=None):
+
+        def move_forward(extrinsic, distance=None):
+
+        def move_backward(extrinsic, distance=None):
 
         def turn_around(extrinsic, recon=None):
 
-        
 
+    Follow the instructions and generate the code inside a ```python ``` block, for example:
 
-    please follow the instructions to generate the code in the ```python ``` block.
-    
     ```python
     def program(input_scene: Scene):
         reconstruction3D = pySpatial.reconstruct(input_scene)
         camera_motion = pySpatial.describe_camera_motion(reconstruction3D)
         return camera_motion
     ```
-
 """
 
-# in-context learning exmaples
+# in-context learning examples (indexing is 0-based: image 1 -> extrinsics[0])
 example_problems = """
     Problem 1:
     Question: "Based on these two views showing the same scene:
@@ -86,105 +78,95 @@ example_problems = """
     B. Directly right
     C. Directly left
     D. Diagonally forward and right"
-    
-    How to solve this problem?
-    Step 1: we can easily find the ansewr with camera extrinsics.
-    Step 2: therefore, we should first reconstruct the scene, and then use the camera extrinsics to find the answer.
-    Step 3: it is still not trivial to directly get the answer from extrinsic matrix.
-    Step 4: we can use the pySpatial.describe_camera_motion to get the answer.
-    Next, write python code within the pySpatial API provided, then an agent will automatically collect the code I wrote and execute it.
-    
+
+    How to solve: the answer follows from the camera extrinsics, so reconstruct the scene first.
+    Reading direction directly off the extrinsic matrices is hard, so use
+    pySpatial.describe_camera_motion to get a text description of the motion.
+
     ```python
     def program(input_scene: Scene):
         reconstruction3D = pySpatial.reconstruct(input_scene)
         camera_motion = pySpatial.describe_camera_motion(reconstruction3D)
         return camera_motion
     ```
-    Step 5: After I get the visual clue from execution, I can easily match the answer:
-    
+    The returned motion description is the visual clue; match it against the options to choose the answer.
+
     Problem 2:
-    Question: "Based on these four images (image 1, 2, 3, and 4) showing the black sneaker from different viewpoints (front, left, back, and right), 
-    with each camera aligned with room walls and partially capturing the surroundings: 
+    Question: "Based on these four images (image 1, 2, 3, and 4) showing the black sneaker from different viewpoints (front, left, back, and right),
+    with each camera aligned with room walls and partially capturing the surroundings:
     From the viewpoint presented in image 2, what is to the right of the black sneaker?
     A. TV
-    B. Wooden dining table 
+    B. Wooden dining table
     C. Light purple sofa
-    D. Brown curtains and windows
-    
-    How to solve this problem?
-    We can first reconstruct the scene and get the point cloud.
-    After that we can use the pySpatial.synthesize_novel_view to get the novel view. We should specifically design a new camera pose.
-    We want to see the right of the black sneaker from the viewpoint as image 2. One possible way is to rotate the camera right from viewpoint 2.  
-    We can use the pySpatial.rotate_right to rotate the camera right.
-    
-    Next, write the python code with the pySptial API provided.
+    D. Brown curtains and windows"
+
+    How to solve: reconstruct the scene, then render what is to the right of viewpoint 2 by rotating
+    that camera to the right with pySpatial.rotate_right and synthesizing the novel view.
+
     ```python
     def program(input_scene: Scene):
         reconstruction3D = pySpatial.reconstruct(input_scene)
-        novel_viewpoint = pySpatial.rotate_right(reconstruction3D.extrinsics[1]) # noted that the second viewpoint is the 1st index in the array
+        novel_viewpoint = pySpatial.rotate_right(reconstruction3D.extrinsics[1])  # image 2 -> index 1
         novel_view = pySpatial.synthesize_novel_view(reconstruction3D, novel_viewpoint)
         return novel_view
     ```
-    From the render view, we can find the result is: 
-    
-    
+    The rendered image is the visual clue; inspect it to identify what lies to the right of the sneaker.
+
     Problem 3:
-    Based on these four images (image 1, 2, 3, and 4) showing the pink bottle from different viewpoints (front, left, back, and right),
+    Question: "Based on these four images (image 1, 2, 3, and 4) showing the pink bottle from different viewpoints (front, left, back, and right),
     with each camera aligned with room walls and partially capturing the surroundings:
     If I am standing at the same spot and facing the same direction as shown in image 1,
-    then I turn right and move forward, will I get closer to the pink plush toy and headboard?
-    
-    since we do not have the way to compare distance in 3D space, we can render two images, and use these two images as visual clue.
+    then I turn right and move forward, will I get closer to the pink plush toy and headboard?"
+
+    How to solve: there is no direct API to compare distances in 3D, so render two views (after turning
+    right, and after also moving forward) and return both as the visual clue for comparison.
+
     ```python
-    
     def program(input_scene: Scene):
-    
         reconstructed_scene = pySpatial.reconstruct(input_scene)
-        base_viewpoint = reconstructed_scene.extrinsics[0] # the image 1 indicates the 0th index in the array
-        
+        base_viewpoint = reconstructed_scene.extrinsics[0]  # image 1 -> index 0
+
         viewpoint_turn_right = pySpatial.rotate_right(base_viewpoint)
         viewpoint_move_forward = pySpatial.move_forward(viewpoint_turn_right)
 
-        image_right = pySpatial.synthesize_novel_view(reconstructed_scene, viewpoint_turn_right)   
+        image_right = pySpatial.synthesize_novel_view(reconstructed_scene, viewpoint_turn_right)
         image_forward = pySpatial.synthesize_novel_view(reconstructed_scene, viewpoint_move_forward)
-        
-        # we should compare these two images, check if the object exists and if the distance is closer.
-        visual_clue = [image_right, image_forward]        
+
+        # compare these two images: check whether the target objects appear and look closer.
+        visual_clue = [image_right, image_forward]
         return visual_clue
     ```
-    
 """
 
 
 code_generation_prompt = f"""
-    Now please utilize the PySpatial API and write a python function to solve the problem.
-    Noted that you can first do reasoning and then write the code. 
-    But the code should be wrapped in the ```python ``` block.
-    Write a compact code block
-    Also, the function written should be named as program and the input parameter should be a Scene object.
-    for example,
+    Now use the pySpatial API to write a Python function that solves the problem.
+    You may reason first, but the final code must be a single compact ```python ``` block.
+    The function must be named program and take one Scene argument:
     ```python
     def program(input_scene: Scene):
         ...
         return ...
     ```
-    there is some questions that is not trivial to use existing API, in this case, try to render one or two images that best help solve the problem.
+    When no existing API directly answers the question, render one or two images that best help solve it,
+    and return them (a single image or a list) as the visual clue.
 """
 
 
 # Prompt template for ReAct: ReAct: Synergizing Reasoning and Acting in Language Models https://arxiv.org/abs/2210.03629
 
 answer_background = f"""
-    We are now solving a spatial reasoing problem.     
-    It is not trivial to solve these tasks directly as a vision langugae model. 
-    However, We have access to the following PySpatial API:
+    We are solving a spatial reasoning problem that is hard to answer directly as a vision language model.
+    To help, we have the following pySpatial API:
     {api_specification}
-    
-    We generate a python code based on the PySpatial API to solve this problem.
+
+    A Python program was generated with this API and executed to produce a visual clue.
 """
 
 answer_prompt = """
-    Based on the code and the visual clue from the execution, answer the question.
+    Using the generated code and the visual clue from its execution, answer the question.
+    Ground your reasoning in the visual clue and the given options, then return your reasoning
+    and the single best option letter (A, B, C, or D).
 """
 
 
@@ -192,11 +174,9 @@ answer_prompt = """
 
 # Prompt for the answer without visual clue
 without_visual_clue_background = """
-    Solve this spatial reasoning problem based on the question and the image input.
-    
-    First, analyze the question, extract useful information from the question description, 
-    then try to answer it based on the useful visual information.
-    
-    Give your best guess if you cannot find the best answer.
+    Solve this spatial reasoning problem from the question and the input image(s).
+
+    First analyze the question and extract the useful information, then answer based on the
+    relevant visual information. Give your best guess if you cannot determine the answer.
 """
 

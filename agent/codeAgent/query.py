@@ -16,7 +16,7 @@ def generate_code_from_query(scene: Scene, api_key: str = None):
         api_key: OpenAI API key (if not provided, will use OPENAI_API_KEY env var)
 
     Returns:
-        str: Generated code response from GPT-4
+        str: Generated code response from LLM query
     """
     if api_key is None:
         api_key = os.getenv('OPENAI_API_KEY')
@@ -45,7 +45,8 @@ def generate_code_from_query(scene: Scene, api_key: str = None):
                 {"role": "system", "content": "You are a helpful assistant that generates Python code using the pySpatial API to solve spatial reasoning problems."},
                 {"role": "user", "content": query_for_vlm}
             ],
-            max_completion_tokens=1000
+            reasoning_effort="low",
+            max_completion_tokens=4000
         )
         
         return response.choices[0].message.content

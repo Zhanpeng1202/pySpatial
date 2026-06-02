@@ -36,7 +36,7 @@ request_lock = threading.Lock()
 # Generated code is arbitrary and may infinite-loop, block on input(), or run
 # away on a huge computation; without this a single bad scene hangs the whole
 # evaluation. 0 disables the limit.
-exec_timeout = 180
+exec_timeout = 10
 
 
 class SceneTimeout(Exception):
@@ -78,7 +78,7 @@ def rate_limit():
         last_request_time = time.time()
 
 
-MAX_API_TRIES = 5
+MAX_API_TRIES = 2
 
 @backoff.on_exception(
     backoff.expo,
@@ -379,7 +379,7 @@ def main():
     parser.add_argument("--output_file", type=str,
                        default="pySpatial_mindcube_test.json",
                        help="Output file path for results")
-    parser.add_argument("--max_entries", type=int, default=1000,
+    parser.add_argument("--max_entries", type=int, default=50,
                        help="Maximum number of entries to process")
     parser.add_argument("--api_key", type=str, default=os.getenv("OPENAI_API_KEY"),
                        help="OpenAI API key (if not provided, uses OPENAI_API_KEY env var)")
